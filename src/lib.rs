@@ -25,16 +25,16 @@ pub struct App<'a> {
 }
 
 impl<'a> App<'a> {
-    pub fn start() -> Result<()> {
+    pub fn run() -> Result<()> {
         errors::install_hooks()?;
         let mut terminal = tui::init()?;
-        App::default().run(&mut terminal)?;
+        App::default().main_loop(&mut terminal)?;
         tui::restore()?;
         Ok(())
     }
 
     /// runs the application's main loop until the user quits
-    fn run(&mut self, terminal: &mut tui::Tui) -> Result<()> {
+    fn main_loop(&mut self, terminal: &mut tui::Tui) -> Result<()> {
         self.chats.iter_mut().for_each(|e| *e = true);
         self.titles = ["All(1)", "Public(2)", "Private(3)", "Team(4)", "Club(5)", "System(6)"];
         while !self.exit {

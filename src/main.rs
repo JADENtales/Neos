@@ -2,5 +2,5 @@ use color_eyre::Result;
 use neos::App;
 
 fn main() -> Result<()> {
-    App::start()
+    App::run()
 }
