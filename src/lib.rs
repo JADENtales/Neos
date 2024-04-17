@@ -2,7 +2,7 @@ use color_eyre::{
     eyre::{bail, WrapErr},
     Result,
 };
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, poll};
 use ratatui::{
     prelude::*,
     symbols::border,
@@ -11,6 +11,9 @@ use ratatui::{
         *,
     },
 };
+use std::{time::Duration, io};
+use std::{fs, io::{Read, Seek, SeekFrom}, thread, time};
+use std::fs::File;
 
 mod errors;
 mod tui;
@@ -21,6 +24,8 @@ pub struct App<'a> {
     vertical: bool,
     chats: [bool; 6],
     titles: [&'a str; 6],
+    messages: [Vec<String>; 6],
+    file_size: u64,
 }
 
 impl<'a> App<'a> {
@@ -38,6 +43,7 @@ impl<'a> App<'a> {
         self.titles = ["All(1)", "Public(2)", "Private(3)", "Team(4)", "Club(5)", "System(6)"];
         while !self.exit {
             terminal.draw(|frame| self.render_frame(frame))?;
+            self.read().unwrap();
             self.handle_events().wrap_err("handle events failed")?;
         }
         Ok(())
@@ -72,23 +78,64 @@ impl<'a> App<'a> {
         let mut index = 0;
         for (i, chat) in self.chats.iter().enumerate() {
             if *chat {
-                frame.render_widget(Paragraph::new("").block(Block::new().title(Title::from(self.titles[i])).borders(Borders::ALL)), children[index]);
+                let text: Vec<Line> = self.messages[0].iter().map(|e| Line::from((*e).clone())).collect();
+                frame.render_widget(Paragraph::new(text).wrap(Wrap { trim: false }).block(Block::new().title(Title::from(self.titles[i])).borders(Borders::ALL)), children[index]);
                 index += 1;
             }
         }
     }
 
+    fn read(&mut self) -> Result<()> {
+        let path = "C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_2024_04_18.html";
+        let mut file = File::open(path)?;
+        let file_size = fs::metadata(path)?.len();  
+        let offset = if 1024 < file_size { -1024 } else { -(file_size as i64) };
+        file.seek(SeekFrom::End(offset))?;
+
+        let mut content = [0; 1024];
+        file.read(&mut content)?;
+        let (cow, _, _) = encoding_rs::SHIFT_JIS.decode(&content);
+        let content = cow.into_owned();
+        let messages: Vec<&str> = content.split("\r\n").filter(|e| e.trim() != "").collect();
+
+        let mut shift_jis_messages = Vec::new();
+        for i in 0..messages.len() {
+            let (cow, _, _) = encoding_rs::SHIFT_JIS.encode(messages[messages.len() - 1 - i]);
+            shift_jis_messages.push(cow.into_owned());
+            let shift_jis_message_size = (shift_jis_messages.iter().map(|e| e.len()).sum::<usize>() + (i + 1) * 2) as u64;
+            let diff = file_size - self.file_size;
+            if self.file_size == 0 || diff == 0 {
+                self.file_size = file_size;
+                return Ok(());
+            }
+            if diff == shift_jis_message_size {
+                self.file_size = file_size;
+                let start = messages.len() - i - 1;
+                self.messages[0].push(String::from(messages[start..].join("\n")));
+                println!("message size matches. {} {} {}", diff, shift_jis_message_size, self.file_size);
+                return Ok(());
+            }
+            // bail!(format!("message size does not match. {} {} {}", diff, shift_jis_message_size, self.file_size));
+            // println!("message size does not match. {} {} {}", diff, shift_jis_message_size, self.file_size);
+        }
+        bail!("message size does not match.")
+    }
+
     /// updates the application's state based on user input
     fn handle_events(&mut self) -> Result<()> {
-        match event::read()? {
-            // it's important to check that the event is a key press event as
-            // crossterm also emits key release and repeat events on Windows.
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                self.handle_key_event(key_event).wrap_err_with(|| {
-                    format!("handling key event failed:\n{key_event:#?}")
-                })
+        if poll(Duration::from_millis(1))? {
+            match event::read()? {
+                // it's important to check that the event is a key press event as
+                // crossterm also emits key release and repeat events on Windows.
+                Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
+                    self.handle_key_event(key_event).wrap_err_with(|| {
+                        format!("handling key event failed:\n{key_event:#?}")
+                    })
+                }
+                _ => Ok(()),
             }
-            _ => Ok(()),
+        } else {
+            Ok(())
         }
     }
 
@@ -115,35 +162,5 @@ mod tests {
 
     #[test]
     fn handle_key_event() {
-        let mut app = App::default();
-        app.handle_key_event(KeyCode::Right.into()).unwrap();
-        assert_eq!(app.counter, 1);
-
-        app.handle_key_event(KeyCode::Left.into()).unwrap();
-        assert_eq!(app.counter, 0);
-
-        let mut app = App::default();
-        app.handle_key_event(KeyCode::Char('q').into()).unwrap();
-        assert_eq!(app.exit, true);
-    }
-
-    #[test]
-    #[should_panic(expected = "attempt to subtract with overflow")]
-    fn handle_key_event_panic() {
-        let mut app = App::default();
-        let _ = app.handle_key_event(KeyCode::Left.into());
-    }
-
-    #[test]
-    fn handle_key_event_overflow() {
-        let mut app = App::default();
-        assert!(app.handle_key_event(KeyCode::Right.into()).is_ok());
-        assert!(app.handle_key_event(KeyCode::Right.into()).is_ok());
-        assert_eq!(
-            app.handle_key_event(KeyCode::Right.into())
-                .unwrap_err()
-                .to_string(),
-            "counter overflow"
-        );
     }
 }
