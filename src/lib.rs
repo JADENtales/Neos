@@ -17,7 +17,6 @@ mod tui;
 
 #[derive(Debug, Default)]
 pub struct App<'a> {
-    counter: i64,
     exit: bool,
     vertical: bool,
     chats: [bool; 6],
@@ -46,8 +45,8 @@ impl<'a> App<'a> {
 
     fn render_frame(&self, frame: &mut Frame) {
         let descriptions = vec![
-            "1: All, 2: Public, 3: Private, 4: Team, 5: Club, 6: System".into(),
-            "q: 終了".into(),
+            Line::from("1: All, 2: Public, 3: Private, 4: Team, 5: Club, 6: System"),
+            Line::from("space: 分割方向切替, q: 終了"),
         ];
         let height = Into::<Text>::into(descriptions.clone()).height() as u16 * 2;
         let parents = Layout::default().direction(Direction::Vertical).constraints(vec![Constraint::Length(height), Constraint::Percentage(100)]).split(frame.size());
@@ -103,6 +102,7 @@ impl<'a> App<'a> {
                 }
                 self.chats[i] = !self.chats[i];
             }
+            KeyCode::Char(' ') => self.vertical = !self.vertical,
             _ => {}
         }
         Ok(())
