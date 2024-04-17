@@ -16,13 +16,15 @@ mod errors;
 mod tui;
 
 #[derive(Debug, Default)]
-pub struct App {
+pub struct App<'a> {
     counter: i64,
     exit: bool,
     vertical: bool,
+    chats: [bool; 6],
+    titles: [&'a str; 6],
 }
 
-impl App {
+impl<'a> App<'a> {
     pub fn start() -> Result<()> {
         errors::install_hooks()?;
         let mut terminal = tui::init()?;
@@ -33,6 +35,8 @@ impl App {
 
     /// runs the application's main loop until the user quits
     fn run(&mut self, terminal: &mut tui::Tui) -> Result<()> {
+        self.chats.iter_mut().for_each(|e| *e = true);
+        self.titles = ["All(1)", "Public(2)", "Private(3)", "Team(4)", "Club(5)", "System(6)"];
         while !self.exit {
             terminal.draw(|frame| self.render_frame(frame))?;
             self.handle_events().wrap_err("handle events failed")?;
@@ -41,31 +45,38 @@ impl App {
     }
 
     fn render_frame(&self, frame: &mut Frame) {
-        let layout = if self.vertical {
-            Layout::default().direction(Direction::Vertical).constraints(vec![
-                Constraint::Percentage(16),
-                Constraint::Percentage(16),
-                Constraint::Percentage(16),
-                Constraint::Percentage(16),
-                Constraint::Percentage(16),
-                Constraint::Percentage(16),
-            ]).split(frame.size())
+        let descriptions = vec![
+            "1: All, 2: Public, 3: Private, 4: Team, 5: Club, 6: System".into(),
+            "q: 終了".into(),
+        ];
+        let height = Into::<Text>::into(descriptions.clone()).height() as u16 * 2;
+        let parents = Layout::default().direction(Direction::Vertical).constraints(vec![Constraint::Length(height), Constraint::Percentage(100)]).split(frame.size());
+        frame.render_widget(Paragraph::new(descriptions).block(Block::new().title(Title::from("")).borders(Borders::ALL)), parents[0]);
+
+        let chats_count = self.chats.iter().filter(|e| **e).collect::<Vec<&bool>>().len() as u16;
+        let percentage = 100 / chats_count as u16;
+        let mut constraints = Vec::new();
+        let mut remainder = 100 - percentage * chats_count;
+        for _ in 0..chats_count {
+            if 0 < remainder {
+                constraints.push(Constraint::Percentage(percentage + 1));
+                remainder -= 1;
+            } else {
+                constraints.push(Constraint::Percentage(percentage));
+            }
+        }
+        let children = if self.vertical {
+            Layout::default().direction(Direction::Vertical).constraints(constraints).split(parents[1])
         } else {
-            Layout::default().direction(Direction::Horizontal).constraints(vec![
-                Constraint::Percentage(16),
-                Constraint::Percentage(16),
-                Constraint::Percentage(16),
-                Constraint::Percentage(16),
-                Constraint::Percentage(16),
-                Constraint::Percentage(16),
-            ]).split(frame.size())
+            Layout::default().direction(Direction::Horizontal).constraints(constraints).split(parents[1])
         };
-        frame.render_widget(Paragraph::new("").block(Block::new().title(Title::from("全体")).borders(Borders::ALL)), layout[0]);
-        frame.render_widget(Paragraph::new("").block(Block::new().title(Title::from("一般")).borders(Borders::ALL)), layout[1]);
-        frame.render_widget(Paragraph::new("").block(Block::new().title(Title::from("耳打ち")).borders(Borders::ALL)), layout[2]);
-        frame.render_widget(Paragraph::new("").block(Block::new().title(Title::from("チーム")).borders(Borders::ALL)), layout[3]);
-        frame.render_widget(Paragraph::new("").block(Block::new().title(Title::from("クラブ")).borders(Borders::ALL)), layout[4]);
-        frame.render_widget(Paragraph::new("").block(Block::new().title(Title::from("システム")).borders(Borders::ALL)), layout[5]);
+        let mut index = 0;
+        for (i, chat) in self.chats.iter().enumerate() {
+            if *chat {
+                frame.render_widget(Paragraph::new("").block(Block::new().title(Title::from(self.titles[i])).borders(Borders::ALL)), children[index]);
+                index += 1;
+            }
+        }
     }
 
     /// updates the application's state based on user input
@@ -84,25 +95,16 @@ impl App {
 
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
         match key_event.code {
-            KeyCode::Char('q') => self.exit(),
-            KeyCode::Left => self.decrement_counter()?,
-            KeyCode::Right => self.increment_counter()?,
+            KeyCode::Char('q') => self.exit = true,
+            KeyCode::Char(char) if '1' <= char && char <= '6' => {
+                let i = (char.to_digit(10).unwrap() - 1) as usize;
+                if self.chats.iter().filter(|e| **e).collect::<Vec<&bool>>().len() == 1 && self.chats[i] {
+                    return Ok(())
+                }
+                self.chats[i] = !self.chats[i];
+            }
             _ => {}
         }
-        Ok(())
-    }
-
-    fn exit(&mut self) {
-        self.exit = true;
-    }
-
-    fn decrement_counter(&mut self) -> Result<()> {
-        self.counter -= 1;
-        Ok(())
-    }
-
-    fn increment_counter(&mut self) -> Result<()> {
-        self.counter += 1;
         Ok(())
     }
 }
