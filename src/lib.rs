@@ -27,12 +27,12 @@ pub struct App<'a> {
     file_size: u64,
     horizontal: bool,
     auto_scroll: bool,
-    panes: [bool; 6],
-    pane_heights: [u16; 6],
-    titles: [&'a str; 6],
-    messages: [Vec<(String, String)>; 6],
-    scroll: [u16; 6],
-    check_boxes: [(u16, u16, u16, u16); 8],
+    panes: [bool; 7],
+    pane_heights: [u16; 7],
+    pane_names: [&'a str; 7],
+    messages: [Vec<(String, String)>; 7],
+    scroll: [u16; 7],
+    check_boxes: [(u16, u16, u16, u16); 9],
     date: NaiveDateTime,
 }
 
@@ -52,7 +52,7 @@ impl<'a> App<'a> {
         self.panes.iter_mut().for_each(|e| *e = true);
         self.horizontal = true;
         self.auto_scroll = true;
-        self.titles = ["All", "Public", "Private", "Team", "Club", "System"];
+        self.pane_names = ["All", "Public", "Private", "Team", "Club", "System", "Server"];
         while !self.exit {
             terminal.draw(|frame| self.render_frame(frame))?;
             self.read().unwrap();
@@ -70,6 +70,7 @@ impl<'a> App<'a> {
             if self.panes[3] { "✅ Team  " } else { "🔲 Team  " },
             if self.panes[4] { "✅ Club  " } else { "🔲 Club  " },
             if self.panes[5] { "✅ System  " } else { "🔲 System  " },
+            if self.panes[6] { "✅ Server  " } else { "🔲 Server  " },
             if self.horizontal { "✅ Horizontal  " } else { "🔲 Horizontal  " },
             if self.auto_scroll { "✅ Auto scroll" } else { "🔲 Auto scroll" },
         ];
@@ -110,7 +111,7 @@ impl<'a> App<'a> {
                     self.scroll[pane_i] = row_count as u16 - (panes[visible_pane_i].height - 2);
                 }
                 frame.render_widget(
-                    Paragraph::new(texts).scroll((self.scroll[pane_i], 0)).wrap(Wrap { trim: false }).block(Block::new().title(Title::from(self.titles[pane_i])).borders(Borders::ALL)),
+                    Paragraph::new(texts).scroll((self.scroll[pane_i], 0)).block(Block::new().title(Title::from(self.pane_names[pane_i])).borders(Borders::ALL)),
                     panes[visible_pane_i]);
                 if 2 <= panes[visible_pane_i].height && panes[visible_pane_i].height - 2 < row_count as u16 {
                     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight).begin_symbol(Some("↑")).end_symbol(Some("↓"));
@@ -121,8 +122,6 @@ impl<'a> App<'a> {
             }
         }
     }
-
-    // todo c896c8 sakebi
 
     fn read(&mut self) -> Result<()> {
         let utc = Utc::now().naive_utc();
@@ -171,6 +170,7 @@ impl<'a> App<'a> {
                         "#f7b73c" => 3,
                         "#94ddfa" => 4,
                         "#ff64ff" | "#ff6464" => 5,
+                        "#c896c8" => 6,
                         _ => bail!("invalid captured color")
                     };
                     self.messages[0].push(((*message).clone(), color.to_string()));
@@ -219,11 +219,11 @@ impl<'a> App<'a> {
             MouseEventKind::Down(MouseButton::Left) => {
                 for i in 0..self.check_boxes.len() {
                     if self.check_boxes[i].0 <= event.column && event.column <= self.check_boxes[i].0 + self.check_boxes[i].2 && self.check_boxes[i].1 <= event.row && event.row <= self.check_boxes[i].1 + self.check_boxes[i].3 {
-                        if i == 6 {
+                        if i == 7 {
                             self.horizontal = !self.horizontal;
                             break;
                         }
-                        if i == 7 {
+                        if i == 8 {
                             self.auto_scroll = !self.auto_scroll;
                             break;
                         }
@@ -233,7 +233,7 @@ impl<'a> App<'a> {
                         self.panes[i] = !self.panes[i];
                     }
                 }
-            }
+            },
             MouseEventKind::ScrollUp => {
                 if self.auto_scroll {
                     return Ok(());
