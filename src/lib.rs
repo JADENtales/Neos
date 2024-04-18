@@ -116,7 +116,7 @@ impl<'a> App<'a> {
                     Paragraph::new(texts).scroll((self.scroll[pane_i], 0)).block(Block::new().title(Title::from(self.pane_names[pane_i])).borders(Borders::ALL)),
                     panes[visible_pane_i]);
                 if 2 <= panes[visible_pane_i].height && panes[visible_pane_i].height - 2 < row_count as u16 {
-                    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight).begin_symbol(Some("↑")).end_symbol(Some("↓"));
+                    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
                     let mut scrollbar_state = ScrollbarState::new(row_count - (panes[visible_pane_i].height as usize - 2)).position(self.scroll[pane_i] as usize);
                     frame.render_stateful_widget(scrollbar, panes[visible_pane_i].inner(&Margin { vertical: 1, horizontal: 0 }), &mut scrollbar_state);
                 }
@@ -225,17 +225,51 @@ impl<'a> App<'a> {
                     }
                     if i == 7 {
                         self.vertical = !self.vertical;
-                        break;
+                        return Ok(());
                     }
                     if i == 8 {
                         self.auto_scroll = !self.auto_scroll;
-                        break;
+                        return Ok(());
                     }
                     if self.panes.iter().filter(|e| e.4).collect::<Vec<_>>().len() == 1 && self.panes[i].4 {
-                        break;
+                        return Ok(());
                     }
                     self.panes[i].4 = !self.panes[i].4;
-                    break;
+                    return Ok(());
+                }
+                if self.auto_scroll {
+                    return Ok(());
+                }
+                // click begin symbol
+                for i in 0..self.panes.len() {
+                    if !self.panes[i].4 {
+                        continue;
+                    }
+                    if !(self.panes[i].0 + self.panes[i].2 - 1 <= event.column && event.column <= self.panes[i].0 + self.panes[i].2 && self.panes[i].1 <= event.row && event.row <= self.panes[i].1 + 1) {
+                        continue;
+                    }
+                    if self.scroll[i] != 0 {
+                        self.scroll[i] -= 1;
+                    }
+                    return Ok(());
+                }
+                // click end symbol
+                for i in 0..self.panes.len() {
+                    if !self.panes[i].4 {
+                        continue;
+                    }
+                    if !(self.panes[i].0 + self.panes[i].2 - 1 <= event.column && event.column <= self.panes[i].0 + self.panes[i].2 && self.panes[i].1 + self.panes[i].3 - 2<= event.row && event.row <= self.panes[i].1 + self.panes[i].3 - 1) {
+                        continue;
+                    }
+                    if self.panes[i].3 < 2 || self.messages[i].len() < self.panes[i].3 as usize - 2 {
+                        continue;
+                    }
+                    if self.scroll[i] + 1 <= self.messages[i].len() as u16 - (self.panes[i].3 - 2) {
+                        self.scroll[i] += 1;
+                    } else {
+                        self.scroll[i] = self.messages[i].len() as u16 - (self.panes[i].3 - 2);
+                    }
+                    return Ok(());
                 }
             },
             MouseEventKind::ScrollUp => {
