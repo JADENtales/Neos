@@ -1,3 +1,5 @@
+use chrono::{DateTime, Datelike, TimeZone, Utc};
+use chrono_tz::{Asia::Tokyo, Tz};
 use color_eyre::{
     eyre::{bail, WrapErr},
     Result,
@@ -114,9 +116,11 @@ impl<'a> App<'a> {
     }
 
     fn read(&mut self) -> Result<()> {
-        let path = "C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_2024_04_18.html";
-        let mut file = File::open(path)?;
-        let file_size = fs::metadata(path)?.len();  
+        let date = Utc::now().naive_utc();
+        let date = Tokyo.from_utc_datetime(&date);
+        let path = format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", date.year(), date.month(), date.day());
+        let mut file = File::open(path.as_str())?;
+        let file_size = fs::metadata(path.as_str())?.len();  
 
         let diff = file_size - self.file_size;
         if self.file_size == 0 || diff == 0 {
