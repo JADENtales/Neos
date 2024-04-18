@@ -25,10 +25,9 @@ mod tui;
 pub struct App<'a> {
     exit: bool,
     file_size: u64,
-    horizontal: bool,
+    vertical: bool,
     auto_scroll: bool,
-    panes: [bool; 7],
-    pane_heights: [u16; 7],
+    panes: [(u16, u16, u16, u16, bool); 7],
     pane_names: [&'a str; 7],
     messages: [Vec<(String, String)>; 7],
     scroll: [u16; 7],
@@ -49,8 +48,11 @@ impl<'a> App<'a> {
     fn main_loop(&mut self, terminal: &mut tui::Tui) -> Result<()> {
         std::io::stdout().execute(crossterm::event::EnableMouseCapture).unwrap();
         self.date = Utc::now().naive_utc();
-        self.panes.iter_mut().for_each(|e| *e = true);
-        self.horizontal = true;
+        self.panes[0].4 = true;
+        self.panes[3].4 = true;
+        self.panes[4].4 = true;
+        self.panes[5].4 = true;
+        self.vertical = true;
         self.auto_scroll = true;
         self.pane_names = ["All", "Public", "Private", "Team", "Club", "System", "Server"];
         while !self.exit {
@@ -64,14 +66,14 @@ impl<'a> App<'a> {
     fn render_frame(&mut self, frame: &mut Frame) {
         let roots = Layout::default().direction(Direction::Vertical).constraints(vec![Constraint::Length(1), Constraint::Percentage(100)]).split(frame.size());
         let labels = vec![
-            if self.panes[0] { "✅ All  " } else { "🔲 All  " },
-            if self.panes[1] { "✅ Public  " } else { "🔲 Public  " },
-            if self.panes[2] { "✅ Private  " } else { "🔲 Private  " },
-            if self.panes[3] { "✅ Team  " } else { "🔲 Team  " },
-            if self.panes[4] { "✅ Club  " } else { "🔲 Club  " },
-            if self.panes[5] { "✅ System  " } else { "🔲 System  " },
-            if self.panes[6] { "✅ Server  " } else { "🔲 Server  " },
-            if self.horizontal { "✅ Horizontal  " } else { "🔲 Horizontal  " },
+            if self.panes[0].4 { "✅ All  " } else { "🔲 All  " },
+            if self.panes[1].4 { "✅ Public  " } else { "🔲 Public  " },
+            if self.panes[2].4 { "✅ Private  " } else { "🔲 Private  " },
+            if self.panes[3].4 { "✅ Team  " } else { "🔲 Team  " },
+            if self.panes[4].4 { "✅ Club  " } else { "🔲 Club  " },
+            if self.panes[5].4 { "✅ System  " } else { "🔲 System  " },
+            if self.panes[6].4 { "✅ Server  " } else { "🔲 Server  " },
+            if self.vertical { "✅ Vertical  " } else { "🔲 Vertical  " },
             if self.auto_scroll { "✅ Auto scroll" } else { "🔲 Auto scroll" },
         ];
         let mut constraints = Vec::new();
@@ -84,7 +86,7 @@ impl<'a> App<'a> {
             self.check_boxes[i] = (check_boxes[i].x, check_boxes[i].y, check_boxes[i].width, check_boxes[i].height);
         }
 
-        let pane_count = self.panes.iter().filter(|e| **e).collect::<Vec<&bool>>().len() as u16;
+        let pane_count = self.panes.iter().filter(|e| e.4).collect::<Vec<_>>().len() as u16;
         let percentage = 100 / pane_count as u16;
         let mut constraints = Vec::new();
         let mut remainder = 100 - percentage * pane_count;
@@ -96,15 +98,15 @@ impl<'a> App<'a> {
                 constraints.push(Constraint::Percentage(percentage));
             }
         }
-        let panes = if self.horizontal {
-            Layout::default().direction(Direction::Horizontal).constraints(constraints).split(roots[1])
-        } else {
+        let panes = if self.vertical {
             Layout::default().direction(Direction::Vertical).constraints(constraints).split(roots[1])
+        } else {
+            Layout::default().direction(Direction::Horizontal).constraints(constraints).split(roots[1])
         };
         let mut visible_pane_i = 0;
-        for (pane_i, pane) in self.panes.iter().enumerate() {
-            if *pane {
-                self.pane_heights[pane_i] = panes[visible_pane_i].height;
+        for pane_i in 0..self.panes.len() {
+            if self.panes[pane_i].4 {
+                self.panes[pane_i] = (panes[visible_pane_i].x, panes[visible_pane_i].y, panes[visible_pane_i].width, panes[visible_pane_i].height, self.panes[pane_i].4);
                 let texts = self.messages[pane_i].iter().map(|e| Line::from(e.0.as_str()).fg(Color::from_str(e.1.as_str()).unwrap())).collect::<Vec<_>>();
                 let row_count = texts.len();
                 if self.auto_scroll && 2 <= panes[visible_pane_i].height && panes[visible_pane_i].height - 2 < row_count as u16 {
@@ -220,17 +222,17 @@ impl<'a> App<'a> {
                 for i in 0..self.check_boxes.len() {
                     if self.check_boxes[i].0 <= event.column && event.column <= self.check_boxes[i].0 + self.check_boxes[i].2 && self.check_boxes[i].1 <= event.row && event.row <= self.check_boxes[i].1 + self.check_boxes[i].3 {
                         if i == 7 {
-                            self.horizontal = !self.horizontal;
+                            self.vertical = !self.vertical;
                             break;
                         }
                         if i == 8 {
                             self.auto_scroll = !self.auto_scroll;
                             break;
                         }
-                        if self.panes.iter().filter(|e| **e).collect::<Vec<&bool>>().len() == 1 && self.panes[i] {
+                        if self.panes.iter().filter(|e| e.4).collect::<Vec<_>>().len() == 1 && self.panes[i].4 {
                             break;
                         }
-                        self.panes[i] = !self.panes[i];
+                        self.panes[i].4 = !self.panes[i].4;
                     }
                 }
             },
@@ -238,7 +240,7 @@ impl<'a> App<'a> {
                 if self.auto_scroll {
                     return Ok(());
                 }
-                if self.pane_heights[0] < 2 || self.messages[0].len() < self.pane_heights[0] as usize - 2 {
+                if self.panes[0].3 < 2 || self.messages[0].len() < self.panes[0].3 as usize - 2 {
                     return Ok(());
                 }
                 if SCROLL <= self.scroll[0] {
@@ -251,13 +253,13 @@ impl<'a> App<'a> {
                 if self.auto_scroll {
                     return Ok(());
                 }
-                if self.pane_heights[0] < 2 || self.messages[0].len() < self.pane_heights[0] as usize - 2 {
+                if self.panes[0].3 < 2 || self.messages[0].len() < self.panes[0].3 as usize - 2 {
                     return Ok(());
                 }
-                if self.scroll[0] + SCROLL <= self.messages[0].len() as u16 - (self.pane_heights[0] - 2) {
+                if self.scroll[0] + SCROLL <= self.messages[0].len() as u16 - (self.panes[0].3 - 2) {
                     self.scroll[0] += SCROLL;
                 } else {
-                    self.scroll[0] = self.messages[0].len() as u16 - (self.pane_heights[0] - 2);
+                    self.scroll[0] = self.messages[0].len() as u16 - (self.panes[0].3 - 2);
                 }
             },
             _ => {}
