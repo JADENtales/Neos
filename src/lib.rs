@@ -2,7 +2,7 @@ use color_eyre::{
     eyre::{bail, WrapErr},
     Result,
 };
-use crossterm::{event::{self, poll, Event, KeyCode, KeyEvent, KeyEventKind, MouseEvent, MouseEventKind}, ExecutableCommand};
+use crossterm::{event::{self, poll, Event, KeyCode, KeyEvent, KeyEventKind, MouseButton, MouseEvent, MouseEventKind}, ExecutableCommand};
 use ratatui::{
     prelude::*,
     symbols::border,
@@ -24,10 +24,11 @@ pub struct App<'a> {
     exit: bool,
     file_size: u64,
     vertical: bool,
-    chats: [bool; 6],
+    panes: [bool; 6],
     titles: [&'a str; 6],
     messages: [Vec<(String, String)>; 6],
     scroll: [u16; 6],
+    check_boxes: [(u16, u16, u16, u16); 7],
 }
 
 impl<'a> App<'a> {
@@ -42,8 +43,9 @@ impl<'a> App<'a> {
     /// runs the application's main loop until the user quits
     fn main_loop(&mut self, terminal: &mut tui::Tui) -> Result<()> {
         std::io::stdout().execute(crossterm::event::EnableMouseCapture).unwrap();
-        self.chats.iter_mut().for_each(|e| *e = true);
-        self.titles = ["All(1)", "Public(2)", "Private(3)", "Team(4)", "Club(5)", "System(6)"];
+        self.panes.iter_mut().for_each(|e| *e = true);
+        self.vertical = true;
+        self.titles = ["All", "Public", "Private", "Team", "Club", "System"];
         while !self.exit {
             terminal.draw(|frame| self.render_frame(frame))?;
             self.read().unwrap();
@@ -53,19 +55,31 @@ impl<'a> App<'a> {
     }
 
     fn render_frame(&mut self, frame: &mut Frame) {
-        let descriptions = vec![
-            Line::from("1: All, 2: Public, 3: Private, 4: Team, 5: Club, 6: System"),
-            Line::from("space: 分割方向切替, q: 終了"),
+        let roots = Layout::default().direction(Direction::Vertical).constraints(vec![Constraint::Length(1), Constraint::Percentage(100)]).split(frame.size());
+        let labels = vec![
+            if self.panes[0] { "✅ All  " } else { "🔲 All  " },
+            if self.panes[1] { "✅ Public  " } else { "🔲 Public  " },
+            if self.panes[2] { "✅ Private  " } else { "🔲 Private  " },
+            if self.panes[3] { "✅ Team  " } else { "🔲 Team  " },
+            if self.panes[4] { "✅ Club  " } else { "🔲 Club  " },
+            if self.panes[5] { "✅ System  " } else { "🔲 System  " },
+            if self.vertical { "✅ Vertical" } else { "🔲 Vertical" },
         ];
-        let height = Into::<Text>::into(descriptions.clone()).height() as u16 * 2;
-        let parents = Layout::default().direction(Direction::Vertical).constraints(vec![Constraint::Length(height), Constraint::Percentage(100)]).split(frame.size());
-        frame.render_widget(Paragraph::new(descriptions).block(Block::new().title(Title::from("")).borders(Borders::ALL)), parents[0]);
-
-        let chats_count = self.chats.iter().filter(|e| **e).collect::<Vec<&bool>>().len() as u16;
-        let percentage = 100 / chats_count as u16;
         let mut constraints = Vec::new();
-        let mut remainder = 100 - percentage * chats_count;
-        for _ in 0..chats_count {
+        for label in &labels {
+            constraints.push(Constraint::Length(Text::from(*label).width() as u16));
+        }
+        let check_boxes = Layout::default().direction(Direction::Horizontal).constraints(constraints).split(roots[0]);
+        for i in 0..labels.len() {
+            frame.render_widget(Paragraph::new(labels[i]), check_boxes[i]);
+            self.check_boxes[i] = (check_boxes[i].x, check_boxes[i].y, check_boxes[i].width, check_boxes[i].height);
+        }
+
+        let pane_count = self.panes.iter().filter(|e| **e).collect::<Vec<&bool>>().len() as u16;
+        let percentage = 100 / pane_count as u16;
+        let mut constraints = Vec::new();
+        let mut remainder = 100 - percentage * pane_count;
+        for _ in 0..pane_count {
             if 0 < remainder {
                 constraints.push(Constraint::Percentage(percentage + 1));
                 remainder -= 1;
@@ -73,28 +87,28 @@ impl<'a> App<'a> {
                 constraints.push(Constraint::Percentage(percentage));
             }
         }
-        let children = if self.vertical {
-            Layout::default().direction(Direction::Vertical).constraints(constraints).split(parents[1])
+        let panes = if self.vertical {
+            Layout::default().direction(Direction::Horizontal).constraints(constraints).split(roots[1])
         } else {
-            Layout::default().direction(Direction::Horizontal).constraints(constraints).split(parents[1])
+            Layout::default().direction(Direction::Vertical).constraints(constraints).split(roots[1])
         };
-        let mut index = 0;
-        for (i, chat) in self.chats.iter().enumerate() {
-            if *chat {
-                let texts = self.messages[i].iter().map(|e| Line::from(e.0.as_str()).fg(Color::from_str(e.1.as_str()).unwrap())).collect::<Vec<_>>();
+        let mut visible_pane_i = 0;
+        for (pane_i, pane) in self.panes.iter().enumerate() {
+            if *pane {
+                let texts = self.messages[pane_i].iter().map(|e| Line::from(e.0.as_str()).fg(Color::from_str(e.1.as_str()).unwrap())).collect::<Vec<_>>();
                 let row_count = texts.len();
-                if 2 <= children[index].height && children[index].height - 2 < row_count as u16 {
-                    self.scroll[i] = row_count as u16 - (children[index].height - 2);
+                if 2 <= panes[visible_pane_i].height && panes[visible_pane_i].height - 2 < row_count as u16 {
+                    self.scroll[pane_i] = row_count as u16 - (panes[visible_pane_i].height - 2);
                 }
                 frame.render_widget(
-                    Paragraph::new(texts).scroll((self.scroll[i], 0)).wrap(Wrap { trim: false }).block(Block::new().title(Title::from(self.titles[i])).borders(Borders::ALL)),
-                    children[index]);
-                if 2 <= children[index].height && children[index].height - 2 < row_count as u16 {
+                    Paragraph::new(texts).scroll((self.scroll[pane_i], 0)).wrap(Wrap { trim: false }).block(Block::new().title(Title::from(self.titles[pane_i])).borders(Borders::ALL)),
+                    panes[visible_pane_i]);
+                if 2 <= panes[visible_pane_i].height && panes[visible_pane_i].height - 2 < row_count as u16 {
                     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight).begin_symbol(Some("↑")).end_symbol(Some("↓"));
-                    let mut scrollbar_state = ScrollbarState::new(row_count - (children[index].height as usize - 2)).position(self.scroll[i] as usize);
-                    frame.render_stateful_widget(scrollbar, children[index].inner(&Margin { vertical: 1, horizontal: 0 }), &mut scrollbar_state);
+                    let mut scrollbar_state = ScrollbarState::new(row_count - (panes[visible_pane_i].height as usize - 2)).position(self.scroll[pane_i] as usize);
+                    frame.render_stateful_widget(scrollbar, panes[visible_pane_i].inner(&Margin { vertical: 1, horizontal: 0 }), &mut scrollbar_state);
                 }
-                index += 1;
+                visible_pane_i += 1;
             }
         }
     }
@@ -163,10 +177,10 @@ impl<'a> App<'a> {
             KeyCode::Char('q') => self.exit = true,
             KeyCode::Char(char) if '1' <= char && char <= '6' => {
                 let i = (char.to_digit(10).unwrap() - 1) as usize;
-                if self.chats.iter().filter(|e| **e).collect::<Vec<&bool>>().len() == 1 && self.chats[i] {
+                if self.panes.iter().filter(|e| **e).collect::<Vec<&bool>>().len() == 1 && self.panes[i] {
                     return Ok(())
                 }
-                self.chats[i] = !self.chats[i];
+                self.panes[i] = !self.panes[i];
             }
             KeyCode::Char(' ') => self.vertical = !self.vertical,
             _ => {}
@@ -177,6 +191,21 @@ impl<'a> App<'a> {
     fn handle_mouse_event(&mut self, event: MouseEvent) -> Result<()> {
         const SCROLL: u16 = 5;
         match event.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                for i in 0..self.check_boxes.len() {
+                    if self.check_boxes[i].0 <= event.column && event.column <= self.check_boxes[i].0 + self.check_boxes[i].2 && self.check_boxes[i].1 <= event.row && event.row <= self.check_boxes[i].1 + self.check_boxes[i].3 {
+                        if i == 6 {
+                            self.vertical = !self.vertical;
+                            return Ok(());
+                        }
+                        if self.panes.iter().filter(|e| **e).collect::<Vec<&bool>>().len() == 1 && self.panes[i] {
+                            return Ok(());
+                        }
+                        self.panes[i] = !self.panes[i];
+                    }
+                }
+                // println!("{} {} {} {} {} {}", self.buttons[0].0, self.buttons[0].1, self.buttons[0].2, self.buttons[0].3, event.column, event.row),
+            }
             MouseEventKind::ScrollUp => {
                 if SCROLL <= self.scroll[0] {
                     self.scroll[0] -= SCROLL;
