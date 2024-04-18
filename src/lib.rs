@@ -105,23 +105,23 @@ impl<'a> App<'a> {
         let messages: Vec<_> = message.split("\r\n").filter(|e| e.trim() != "").collect();
         let regex = Regex::new(r##" <font.+color="(.+)">(.+)</font></br>$"##).unwrap();
         for message in messages {
-            let (color, message) = match regex.captures(&message) {
+            match regex.captures(&message) {
                 Some(captures) => {
-                    (String::from(&captures[1]), String::from(&captures[2]))
+                    let color = &captures[1];
+                    let message = &captures[2].replace("&nbsp", " ");
+                    let i = match color {
+                        "#c8ffc8" => 1,
+                        "#64ff64" => 2,
+                        "#f7b73c" => 3,
+                        "#94ddfa" => 4,
+                        "#ff64ff" | "#ff6464" => 5,
+                        _ => bail!("invalid captured color")
+                    };
+                    self.messages[0].push(((*message).clone(), color.to_string()));
+                    self.messages[i].push(((*message).clone(), color.to_string()));
                 }
                 _ => bail!("regex does not match."),
-            };
-            let message = message.replace("&nbsp", " ");
-            let i = match color.as_str() {
-                "#c8ffc8" => 1,
-                "#64ff64" => 2,
-                "#f7b73c" => 3,
-                "#94ddfa" => 4,
-                "#ff64ff" | "#ff6464" => 5,
-                _ => bail!("invalid captured color")
-            };
-            self.messages[0].push((message.clone(), color.clone()));
-            self.messages[i].push((message, color));
+            }
         }
         Ok(())
     }
