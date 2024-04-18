@@ -2,7 +2,7 @@ use color_eyre::{
     eyre::{bail, WrapErr},
     Result,
 };
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, poll};
+use crossterm::{event::{self, poll, Event, KeyCode, KeyEvent, KeyEventKind, MouseEvent, MouseEventKind}, ExecutableCommand};
 use ratatui::{
     prelude::*,
     symbols::border,
@@ -22,11 +22,12 @@ mod tui;
 #[derive(Debug, Default)]
 pub struct App<'a> {
     exit: bool,
+    file_size: u64,
     vertical: bool,
     chats: [bool; 6],
     titles: [&'a str; 6],
     messages: [Vec<(String, String)>; 6],
-    file_size: u64,
+    scroll: [u16; 6],
 }
 
 impl<'a> App<'a> {
@@ -40,6 +41,7 @@ impl<'a> App<'a> {
 
     /// runs the application's main loop until the user quits
     fn main_loop(&mut self, terminal: &mut tui::Tui) -> Result<()> {
+        std::io::stdout().execute(crossterm::event::EnableMouseCapture).unwrap();
         self.chats.iter_mut().for_each(|e| *e = true);
         self.titles = ["All(1)", "Public(2)", "Private(3)", "Team(4)", "Club(5)", "System(6)"];
         while !self.exit {
@@ -50,7 +52,7 @@ impl<'a> App<'a> {
         Ok(())
     }
 
-    fn render_frame(&self, frame: &mut Frame) {
+    fn render_frame(&mut self, frame: &mut Frame) {
         let descriptions = vec![
             Line::from("1: All, 2: Public, 3: Private, 4: Team, 5: Club, 6: System"),
             Line::from("space: 分割方向切替, q: 終了"),
@@ -79,8 +81,19 @@ impl<'a> App<'a> {
         let mut index = 0;
         for (i, chat) in self.chats.iter().enumerate() {
             if *chat {
-                let text = self.messages[index].iter().map(|e| Line::from(e.0.as_str()).fg(Color::from_str(e.1.as_str()).unwrap())).collect::<Vec<_>>();
-                frame.render_widget(Paragraph::new(text).wrap(Wrap { trim: false }).block(Block::new().title(Title::from(self.titles[i])).borders(Borders::ALL)), children[index]);
+                let texts = self.messages[i].iter().map(|e| Line::from(e.0.as_str()).fg(Color::from_str(e.1.as_str()).unwrap())).collect::<Vec<_>>();
+                let row_count = texts.len();
+                if 2 <= children[index].height && children[index].height - 2 < row_count as u16 {
+                    self.scroll[i] = row_count as u16 - (children[index].height - 2);
+                }
+                frame.render_widget(
+                    Paragraph::new(texts).scroll((self.scroll[i], 0)).wrap(Wrap { trim: false }).block(Block::new().title(Title::from(self.titles[i])).borders(Borders::ALL)),
+                    children[index]);
+                if 2 <= children[index].height && children[index].height - 2 < row_count as u16 {
+                    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight).begin_symbol(Some("↑")).end_symbol(Some("↓"));
+                    let mut scrollbar_state = ScrollbarState::new(row_count - (children[index].height as usize - 2)).position(self.scroll[i] as usize);
+                    frame.render_stateful_widget(scrollbar, children[index].inner(&Margin { vertical: 1, horizontal: 0 }), &mut scrollbar_state);
+                }
                 index += 1;
             }
         }
@@ -132,11 +145,12 @@ impl<'a> App<'a> {
             match event::read()? {
                 // it's important to check that the event is a key press event as
                 // crossterm also emits key release and repeat events on Windows.
-                Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                    self.handle_key_event(key_event).wrap_err_with(|| {
-                        format!("handling key event failed:\n{key_event:#?}")
+                Event::Key(event) if event.kind == KeyEventKind::Press => {
+                    self.handle_key_event(event).wrap_err_with(|| {
+                        format!("handling key event failed:\n{event:#?}")
                     })
                 }
+                Event::Mouse(event) => self.handle_mouse_event(event),
                 _ => Ok(()),
             }
         } else {
@@ -155,6 +169,29 @@ impl<'a> App<'a> {
                 self.chats[i] = !self.chats[i];
             }
             KeyCode::Char(' ') => self.vertical = !self.vertical,
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn handle_mouse_event(&mut self, event: MouseEvent) -> Result<()> {
+        const SCROLL: u16 = 5;
+        match event.kind {
+            MouseEventKind::ScrollUp => {
+                if SCROLL <= self.scroll[0] {
+                    self.scroll[0] -= SCROLL;
+                } else {
+                    self.scroll[0] = 0;
+                }
+                return Ok(());
+            },
+            MouseEventKind::ScrollDown => {
+                if self.scroll[0] + SCROLL < self.messages[0].len() as u16 {
+                    self.scroll[0] += SCROLL;
+                } else {
+                    self.scroll[0] = (self.messages[0].len() - 1) as u16;
+                }
+            },
             _ => {}
         }
         Ok(())
