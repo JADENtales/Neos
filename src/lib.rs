@@ -11,7 +11,7 @@ use ratatui::{
         *,
     },
 };
-use std::{time::Duration, io};
+use std::{io, str::FromStr, time::Duration};
 use std::{fs, io::{Read, Seek, SeekFrom}, thread, time};
 use std::fs::File;
 use regex::Regex;
@@ -79,7 +79,16 @@ impl<'a> App<'a> {
         let mut index = 0;
         for (i, chat) in self.chats.iter().enumerate() {
             if *chat {
-                let text = self.messages[index].clone();
+                let color = match i {
+                    0 => Color::from_str("#c8ffc8"),
+                    1 => Color::from_str("#c8ffc8"),
+                    2 => Color::from_str("#64ff64"),
+                    3 => Color::from_str("#f7b73c"),
+                    4 => Color::from_str("#94ddfa"),
+                    5 => Color::from_str("#ff64ff"),
+                    _ => panic!("invalid chat index")
+                };
+                let text = Into::<Text>::into(self.messages[index].as_str()).fg(color.unwrap());
                 frame.render_widget(Paragraph::new(text).wrap(Wrap { trim: false }).block(Block::new().title(Title::from(self.titles[i])).borders(Borders::ALL)), children[index]);
                 index += 1;
             }
@@ -117,8 +126,8 @@ impl<'a> App<'a> {
                 "#64ff64" => 2,
                 "#f7b73c" => 3,
                 "#94ddfa" => 4,
-                "#ff64ff" | "ff6464" => 5,
-                _ => bail!("invalid color")
+                "#ff64ff" | "#ff6464" => 5,
+                _ => bail!("invalid captured color")
             };
             let all_message = if self.messages[0].is_empty() { message.clone() } else { format!("\n{}", message) };
             self.messages[0].push_str(&all_message);
