@@ -14,6 +14,7 @@ use ratatui::{
 use std::{time::Duration, io};
 use std::{fs, io::{Read, Seek, SeekFrom}, thread, time};
 use std::fs::File;
+use regex::Regex;
 
 mod errors;
 mod tui;
@@ -78,7 +79,7 @@ impl<'a> App<'a> {
         let mut index = 0;
         for (i, chat) in self.chats.iter().enumerate() {
             if *chat {
-                let text = self.messages[0].clone();
+                let text = self.messages[index].clone();
                 frame.render_widget(Paragraph::new(text).wrap(Wrap { trim: false }).block(Block::new().title(Title::from(self.titles[i])).borders(Borders::ALL)), children[index]);
                 index += 1;
             }
@@ -90,7 +91,7 @@ impl<'a> App<'a> {
         let mut file = File::open(path)?;
         let file_size = fs::metadata(path)?.len();  
 
-        let diff = (file_size - self.file_size);
+        let diff = file_size - self.file_size;
         if self.file_size == 0 || diff == 0 {
             self.file_size = file_size;
             return Ok(());
@@ -101,8 +102,19 @@ impl<'a> App<'a> {
         file.read(&mut content)?;
         let (cow, _, _) = encoding_rs::SHIFT_JIS.decode(&content);
         let message = cow.into_owned();
-        let message = if self.messages[0].is_empty() { String::from(message.trim()) } else { format!("\n{}", message.trim()) };
-        self.messages[0].push_str(&message);
+        let messages: Vec<_> = message.split("\r\n").filter(|e| e.trim() != "").collect();
+        let regex = Regex::new(r##" <font.+>(.+)</font></br>$"##).unwrap();
+        for message in messages {
+            let message = match regex.captures(&message) {
+                Some(captures) => {
+                    String::from(&captures[1])
+                }
+                _ => bail!("regex does not match."),
+            };
+            let message = message.replace("&nbsp", " ");
+            let message = if self.messages[0].is_empty() { message } else { format!("\n{}", message) };
+            self.messages[0].push_str(&message);
+        }
         Ok(())
     }
 
