@@ -1,4 +1,4 @@
-use chrono::{DateTime, Datelike, TimeZone, Utc};
+use chrono::{DateTime, Datelike, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::{Asia::Tokyo, Tz};
 use color_eyre::{
     eyre::{bail, WrapErr},
@@ -13,7 +13,7 @@ use ratatui::{
         *,
     },
 };
-use std::{io, str::FromStr, time::Duration};
+use std::{io, path::Path, str::FromStr, time::Duration};
 use std::{fs, io::{Read, Seek, SeekFrom}, thread, time};
 use std::fs::File;
 use regex::Regex;
@@ -31,6 +31,7 @@ pub struct App<'a> {
     messages: [Vec<(String, String)>; 6],
     scroll: [u16; 6],
     check_boxes: [(u16, u16, u16, u16); 7],
+    date: NaiveDateTime,
 }
 
 impl<'a> App<'a> {
@@ -45,6 +46,7 @@ impl<'a> App<'a> {
     /// runs the application's main loop until the user quits
     fn main_loop(&mut self, terminal: &mut tui::Tui) -> Result<()> {
         std::io::stdout().execute(crossterm::event::EnableMouseCapture).unwrap();
+        self.date = Utc::now().naive_utc();
         self.panes.iter_mut().for_each(|e| *e = true);
         self.vertical = true;
         self.titles = ["All", "Public", "Private", "Team", "Club", "System"];
@@ -115,21 +117,38 @@ impl<'a> App<'a> {
         }
     }
 
+    // todo c896c8 sakebi
+
     fn read(&mut self) -> Result<()> {
-        let date = Utc::now().naive_utc();
-        let date = Tokyo.from_utc_datetime(&date);
-        let path = format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", date.year(), date.month(), date.day());
-        let mut file = File::open(path.as_str())?;
-        let file_size = fs::metadata(path.as_str())?.len();  
+        let utc = Utc::now().naive_utc();
+        let now = Tokyo.from_utc_datetime(&utc);
+        let past = Tokyo.from_utc_datetime(&self.date);
+        let path = if past.day() == now.day() {
+            format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", now.year(), now.month(), now.day())
+        } else {
+            self.date = utc;
+            self.file_size = 0;
+            format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", past.year(), past.month(), past.day())
+        };
+        let path = Path::new(path.as_str());
+        if !path.is_file() {
+            return Ok(());
+        }
+        let mut file = File::open(path)?;
+        let file_size = fs::metadata(path)?.len();  
 
         let diff = file_size - self.file_size;
-        if self.file_size == 0 || diff == 0 {
+        if (self.file_size == 0 || diff == 0) && past.day() == now.day() {
             self.file_size = file_size;
             return Ok(());
         }
         self.file_size = file_size;
-        file.seek(SeekFrom::End(-(diff as i64)))?;
-        let mut content = vec![0; diff as usize];
+        let mut content = if past.day() == now.day() {
+            file.seek(SeekFrom::End(-(diff as i64)))?;
+            vec![0; diff as usize]
+        } else {
+            vec![0; file_size as usize]
+        };
         file.read(&mut content)?;
         let (cow, _, _) = encoding_rs::SHIFT_JIS.decode(&content);
         let message = cow.into_owned();
