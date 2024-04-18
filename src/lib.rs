@@ -103,17 +103,27 @@ impl<'a> App<'a> {
         let (cow, _, _) = encoding_rs::SHIFT_JIS.decode(&content);
         let message = cow.into_owned();
         let messages: Vec<_> = message.split("\r\n").filter(|e| e.trim() != "").collect();
-        let regex = Regex::new(r##" <font.+>(.+)</font></br>$"##).unwrap();
+        let regex = Regex::new(r##" <font.+color="(.+)">(.+)</font></br>$"##).unwrap();
         for message in messages {
-            let message = match regex.captures(&message) {
+            let (color, message) = match regex.captures(&message) {
                 Some(captures) => {
-                    String::from(&captures[1])
+                    (String::from(&captures[1]), String::from(&captures[2]))
                 }
                 _ => bail!("regex does not match."),
             };
             let message = message.replace("&nbsp", " ");
-            let message = if self.messages[0].is_empty() { message } else { format!("\n{}", message) };
-            self.messages[0].push_str(&message);
+            let i = match color.as_str() {
+                "#c8ffc8" => 1,
+                "#64ff64" => 2,
+                "#f7b73c" => 3,
+                "#94ddfa" => 4,
+                "#ff64ff" | "ff6464" => 5,
+                _ => bail!("invalid color")
+            };
+            let all_message = if self.messages[0].is_empty() { message.clone() } else { format!("\n{}", message) };
+            self.messages[0].push_str(&all_message);
+            let other_message = if self.messages[i].is_empty() { message } else { format!("\n{}", message) };
+            self.messages[i].push_str(&other_message);
         }
         Ok(())
     }
