@@ -129,6 +129,7 @@ impl<'a> App<'a> {
         file.read(&mut content)?;
         let (cow, _, _) = encoding_rs::SHIFT_JIS.decode(&content);
         let message = cow.into_owned();
+
         let messages: Vec<_> = message.split("\r\n").filter(|e| e.trim() != "").collect();
         let regex = Regex::new(r##" <font.+color="(.+)">(.+)</font></br>$"##).unwrap();
         for message in messages {
@@ -174,15 +175,11 @@ impl<'a> App<'a> {
 
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
         match key_event.code {
-            KeyCode::Char('q') => self.exit = true,
-            KeyCode::Char(char) if '1' <= char && char <= '6' => {
-                let i = (char.to_digit(10).unwrap() - 1) as usize;
-                if self.panes.iter().filter(|e| **e).collect::<Vec<&bool>>().len() == 1 && self.panes[i] {
-                    return Ok(())
+            KeyCode::Char('q') => {
+                if cfg!(debug_assertions) {
+                    self.exit = true;
                 }
-                self.panes[i] = !self.panes[i];
             }
-            KeyCode::Char(' ') => self.vertical = !self.vertical,
             _ => {}
         }
         Ok(())
@@ -196,15 +193,14 @@ impl<'a> App<'a> {
                     if self.check_boxes[i].0 <= event.column && event.column <= self.check_boxes[i].0 + self.check_boxes[i].2 && self.check_boxes[i].1 <= event.row && event.row <= self.check_boxes[i].1 + self.check_boxes[i].3 {
                         if i == 6 {
                             self.vertical = !self.vertical;
-                            return Ok(());
+                            break;
                         }
                         if self.panes.iter().filter(|e| **e).collect::<Vec<&bool>>().len() == 1 && self.panes[i] {
-                            return Ok(());
+                            break;
                         }
                         self.panes[i] = !self.panes[i];
                     }
                 }
-                // println!("{} {} {} {} {} {}", self.buttons[0].0, self.buttons[0].1, self.buttons[0].2, self.buttons[0].3, event.column, event.row),
             }
             MouseEventKind::ScrollUp => {
                 if SCROLL <= self.scroll[0] {
@@ -212,7 +208,6 @@ impl<'a> App<'a> {
                 } else {
                     self.scroll[0] = 0;
                 }
-                return Ok(());
             },
             MouseEventKind::ScrollDown => {
                 if self.scroll[0] + SCROLL < self.messages[0].len() as u16 {
