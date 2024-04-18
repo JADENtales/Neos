@@ -220,46 +220,60 @@ impl<'a> App<'a> {
         match event.kind {
             MouseEventKind::Down(MouseButton::Left) => {
                 for i in 0..self.check_boxes.len() {
-                    if self.check_boxes[i].0 <= event.column && event.column <= self.check_boxes[i].0 + self.check_boxes[i].2 && self.check_boxes[i].1 <= event.row && event.row <= self.check_boxes[i].1 + self.check_boxes[i].3 {
-                        if i == 7 {
-                            self.vertical = !self.vertical;
-                            break;
-                        }
-                        if i == 8 {
-                            self.auto_scroll = !self.auto_scroll;
-                            break;
-                        }
-                        if self.panes.iter().filter(|e| e.4).collect::<Vec<_>>().len() == 1 && self.panes[i].4 {
-                            break;
-                        }
-                        self.panes[i].4 = !self.panes[i].4;
+                    if !(self.check_boxes[i].0 <= event.column && event.column <= self.check_boxes[i].0 + self.check_boxes[i].2 && self.check_boxes[i].1 <= event.row && event.row <= self.check_boxes[i].1 + self.check_boxes[i].3) {
+                        continue;
                     }
+                    if i == 7 {
+                        self.vertical = !self.vertical;
+                        break;
+                    }
+                    if i == 8 {
+                        self.auto_scroll = !self.auto_scroll;
+                        break;
+                    }
+                    if self.panes.iter().filter(|e| e.4).collect::<Vec<_>>().len() == 1 && self.panes[i].4 {
+                        break;
+                    }
+                    self.panes[i].4 = !self.panes[i].4;
+                    break;
                 }
             },
             MouseEventKind::ScrollUp => {
                 if self.auto_scroll {
                     return Ok(());
                 }
-                if self.panes[0].3 < 2 || self.messages[0].len() < self.panes[0].3 as usize - 2 {
-                    return Ok(());
-                }
-                if SCROLL <= self.scroll[0] {
-                    self.scroll[0] -= SCROLL;
-                } else {
-                    self.scroll[0] = 0;
+                for i in 0..self.panes.len() {
+                    if !(self.panes[i].0 <= event.column && event.column <= self.panes[i].0 + self.panes[i].2 && self.panes[i].1 <= event.row && event.row <= self.panes[i].1 + self.panes[i].3) {
+                        continue;
+                    }
+                    if self.panes[i].3 < 2 || self.messages[i].len() < self.panes[i].3 as usize - 2 {
+                        continue;
+                    }
+                    if SCROLL <= self.scroll[i] {
+                        self.scroll[i] -= SCROLL;
+                    } else {
+                        self.scroll[i] = 0;
+                    }
+                    break;
                 }
             },
             MouseEventKind::ScrollDown => {
                 if self.auto_scroll {
                     return Ok(());
                 }
-                if self.panes[0].3 < 2 || self.messages[0].len() < self.panes[0].3 as usize - 2 {
-                    return Ok(());
-                }
-                if self.scroll[0] + SCROLL <= self.messages[0].len() as u16 - (self.panes[0].3 - 2) {
-                    self.scroll[0] += SCROLL;
-                } else {
-                    self.scroll[0] = self.messages[0].len() as u16 - (self.panes[0].3 - 2);
+                for i in 0..self.panes.len() {
+                    if !(self.panes[i].0 <= event.column && event.column <= self.panes[i].0 + self.panes[i].2 && self.panes[i].1 <= event.row && event.row <= self.panes[i].1 + self.panes[i].3) {
+                        continue;
+                    }
+                    if self.panes[i].3 < 2 || self.messages[i].len() < self.panes[i].3 as usize - 2 {
+                        continue;
+                    }
+                    if self.scroll[i] + SCROLL <= self.messages[i].len() as u16 - (self.panes[i].3 - 2) {
+                        self.scroll[i] += SCROLL;
+                    } else {
+                        self.scroll[i] = self.messages[i].len() as u16 - (self.panes[i].3 - 2);
+                    }
+                    break;
                 }
             },
             _ => {}
