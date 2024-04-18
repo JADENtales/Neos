@@ -25,12 +25,14 @@ mod tui;
 pub struct App<'a> {
     exit: bool,
     file_size: u64,
-    vertical: bool,
+    horizontal: bool,
+    auto_scroll: bool,
     panes: [bool; 6],
+    pane_heights: [u16; 6],
     titles: [&'a str; 6],
     messages: [Vec<(String, String)>; 6],
     scroll: [u16; 6],
-    check_boxes: [(u16, u16, u16, u16); 7],
+    check_boxes: [(u16, u16, u16, u16); 8],
     date: NaiveDateTime,
 }
 
@@ -48,7 +50,8 @@ impl<'a> App<'a> {
         std::io::stdout().execute(crossterm::event::EnableMouseCapture).unwrap();
         self.date = Utc::now().naive_utc();
         self.panes.iter_mut().for_each(|e| *e = true);
-        self.vertical = true;
+        self.horizontal = true;
+        self.auto_scroll = true;
         self.titles = ["All", "Public", "Private", "Team", "Club", "System"];
         while !self.exit {
             terminal.draw(|frame| self.render_frame(frame))?;
@@ -67,7 +70,8 @@ impl<'a> App<'a> {
             if self.panes[3] { "✅ Team  " } else { "🔲 Team  " },
             if self.panes[4] { "✅ Club  " } else { "🔲 Club  " },
             if self.panes[5] { "✅ System  " } else { "🔲 System  " },
-            if self.vertical { "✅ Vertical" } else { "🔲 Vertical" },
+            if self.horizontal { "✅ Horizontal  " } else { "🔲 Horizontal  " },
+            if self.auto_scroll { "✅ Auto scroll" } else { "🔲 Auto scroll" },
         ];
         let mut constraints = Vec::new();
         for label in &labels {
@@ -91,7 +95,7 @@ impl<'a> App<'a> {
                 constraints.push(Constraint::Percentage(percentage));
             }
         }
-        let panes = if self.vertical {
+        let panes = if self.horizontal {
             Layout::default().direction(Direction::Horizontal).constraints(constraints).split(roots[1])
         } else {
             Layout::default().direction(Direction::Vertical).constraints(constraints).split(roots[1])
@@ -99,9 +103,10 @@ impl<'a> App<'a> {
         let mut visible_pane_i = 0;
         for (pane_i, pane) in self.panes.iter().enumerate() {
             if *pane {
+                self.pane_heights[pane_i] = panes[visible_pane_i].height;
                 let texts = self.messages[pane_i].iter().map(|e| Line::from(e.0.as_str()).fg(Color::from_str(e.1.as_str()).unwrap())).collect::<Vec<_>>();
                 let row_count = texts.len();
-                if 2 <= panes[visible_pane_i].height && panes[visible_pane_i].height - 2 < row_count as u16 {
+                if self.auto_scroll && 2 <= panes[visible_pane_i].height && panes[visible_pane_i].height - 2 < row_count as u16 {
                     self.scroll[pane_i] = row_count as u16 - (panes[visible_pane_i].height - 2);
                 }
                 frame.render_widget(
@@ -215,7 +220,11 @@ impl<'a> App<'a> {
                 for i in 0..self.check_boxes.len() {
                     if self.check_boxes[i].0 <= event.column && event.column <= self.check_boxes[i].0 + self.check_boxes[i].2 && self.check_boxes[i].1 <= event.row && event.row <= self.check_boxes[i].1 + self.check_boxes[i].3 {
                         if i == 6 {
-                            self.vertical = !self.vertical;
+                            self.horizontal = !self.horizontal;
+                            break;
+                        }
+                        if i == 7 {
+                            self.auto_scroll = !self.auto_scroll;
                             break;
                         }
                         if self.panes.iter().filter(|e| **e).collect::<Vec<&bool>>().len() == 1 && self.panes[i] {
@@ -226,6 +235,12 @@ impl<'a> App<'a> {
                 }
             }
             MouseEventKind::ScrollUp => {
+                if self.auto_scroll {
+                    return Ok(());
+                }
+                if self.pane_heights[0] < 2 || self.messages[0].len() < self.pane_heights[0] as usize - 2 {
+                    return Ok(());
+                }
                 if SCROLL <= self.scroll[0] {
                     self.scroll[0] -= SCROLL;
                 } else {
@@ -233,10 +248,16 @@ impl<'a> App<'a> {
                 }
             },
             MouseEventKind::ScrollDown => {
-                if self.scroll[0] + SCROLL < self.messages[0].len() as u16 {
+                if self.auto_scroll {
+                    return Ok(());
+                }
+                if self.pane_heights[0] < 2 || self.messages[0].len() < self.pane_heights[0] as usize - 2 {
+                    return Ok(());
+                }
+                if self.scroll[0] + SCROLL <= self.messages[0].len() as u16 - (self.pane_heights[0] - 2) {
                     self.scroll[0] += SCROLL;
                 } else {
-                    self.scroll[0] = (self.messages[0].len() - 1) as u16;
+                    self.scroll[0] = self.messages[0].len() as u16 - (self.pane_heights[0] - 2);
                 }
             },
             _ => {}
