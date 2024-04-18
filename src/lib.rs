@@ -24,7 +24,7 @@ pub struct App<'a> {
     vertical: bool,
     chats: [bool; 6],
     titles: [&'a str; 6],
-    messages: [Vec<String>; 6],
+    messages: [String; 6],
     file_size: u64,
 }
 
@@ -78,7 +78,7 @@ impl<'a> App<'a> {
         let mut index = 0;
         for (i, chat) in self.chats.iter().enumerate() {
             if *chat {
-                let text: Vec<Line> = self.messages[0].iter().map(|e| Line::from((*e).clone())).collect();
+                let text = self.messages[0].clone();
                 frame.render_widget(Paragraph::new(text).wrap(Wrap { trim: false }).block(Block::new().title(Title::from(self.titles[i])).borders(Borders::ALL)), children[index]);
                 index += 1;
             }
@@ -89,36 +89,21 @@ impl<'a> App<'a> {
         let path = "C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_2024_04_18.html";
         let mut file = File::open(path)?;
         let file_size = fs::metadata(path)?.len();  
-        let offset = if 1024 < file_size { -1024 } else { -(file_size as i64) };
-        file.seek(SeekFrom::End(offset))?;
 
-        let mut content = [0; 1024];
+        let diff = (file_size - self.file_size);
+        if self.file_size == 0 || diff == 0 {
+            self.file_size = file_size;
+            return Ok(());
+        }
+        self.file_size = file_size;
+        file.seek(SeekFrom::End(-(diff as i64)))?;
+        let mut content = vec![0; diff as usize];
         file.read(&mut content)?;
         let (cow, _, _) = encoding_rs::SHIFT_JIS.decode(&content);
-        let content = cow.into_owned();
-        let messages: Vec<&str> = content.split("\r\n").filter(|e| e.trim() != "").collect();
-
-        let mut shift_jis_messages = Vec::new();
-        for i in 0..messages.len() {
-            let (cow, _, _) = encoding_rs::SHIFT_JIS.encode(messages[messages.len() - 1 - i]);
-            shift_jis_messages.push(cow.into_owned());
-            let shift_jis_message_size = (shift_jis_messages.iter().map(|e| e.len()).sum::<usize>() + (i + 1) * 2) as u64;
-            let diff = file_size - self.file_size;
-            if self.file_size == 0 || diff == 0 {
-                self.file_size = file_size;
-                return Ok(());
-            }
-            if diff == shift_jis_message_size {
-                self.file_size = file_size;
-                let start = messages.len() - i - 1;
-                self.messages[0].push(String::from(messages[start..].join("\n")));
-                println!("message size matches. {} {} {}", diff, shift_jis_message_size, self.file_size);
-                return Ok(());
-            }
-            // bail!(format!("message size does not match. {} {} {}", diff, shift_jis_message_size, self.file_size));
-            // println!("message size does not match. {} {} {}", diff, shift_jis_message_size, self.file_size);
-        }
-        bail!("message size does not match.")
+        let message = cow.into_owned();
+        let message = if self.messages[0].is_empty() { String::from(message.trim()) } else { format!("\n{}", message.trim()) };
+        self.messages[0].push_str(&message);
+        Ok(())
     }
 
     /// updates the application's state based on user input
