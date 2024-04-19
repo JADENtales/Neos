@@ -21,6 +21,8 @@ use regex::Regex;
 mod errors;
 mod tui;
 
+// todo drag title wrap date-change-test
+
 #[derive(Debug, Default)]
 pub struct App<'a> {
     exit: bool,
@@ -196,6 +198,7 @@ impl<'a> App<'a> {
                     })
                 }
                 Event::Mouse(event) => self.handle_mouse_event(event),
+                Event::Resize(width, height) => self.handle_resize_event(width, height),
                 _ => Ok(()),
             }
         } else {
@@ -311,6 +314,18 @@ impl<'a> App<'a> {
                 }
             },
             _ => {}
+        }
+        Ok(())
+    }
+
+    fn handle_resize_event(&mut self, _: u16, _: u16) -> Result<()> {
+        for i in 0..self.panes.len() {
+            if !self.panes[i].4 {
+                continue;
+            }
+            if !self.auto_scroll && 2 <= self.panes[i].3 && self.messages[i].len() as u16 <= self.panes[i].3 - 2 {
+                self.scroll[i] = 0;
+            }
         }
         Ok(())
     }
