@@ -151,17 +151,17 @@ impl<'a> App<'a> {
             self.file_size = file_size;
             return Ok(());
         }
-        let diff = file_size - self.file_size;
-        if diff == 0 && past.day() == now.day() {
+        if self.file_size == file_size && past.day() == now.day() {
             return Ok(());
         }
-        self.file_size = file_size;
         let buf_size = if past.day() == now.day() {
-            file.seek(SeekFrom::End(-(diff as i64)))?;
-            diff
+            // file.seek(SeekFrom::End(-(diff as i64)))?;
+            file.seek(SeekFrom::Start(self.file_size))?;
+            file_size - self.file_size
         } else {
             file_size
         };
+        self.file_size = file_size;
         let mut content = vec![0; buf_size as usize];
         file.read(&mut content)?;
         let (cow, _, _) = encoding_rs::SHIFT_JIS.decode(&content);
@@ -203,13 +203,13 @@ impl<'a> App<'a> {
                     let color = &captures[2];
                     let message = &captures[3].replace("&nbsp", " ");
                     let i = match color {
-                        "#c8ffc8" => 1,
+                        "#c8ffc8" | "#ffffff" => 1,
                         "#64ff64" => 2,
                         "#f7b73c" => 3,
                         "#94ddfa" => 4,
                         "#ff64ff" | "#ff6464" => 5,
                         "#c896c8" => 6,
-                        _ => bail!("invalid captured color.: {}", color)
+                        _ => bail!("invalid captured color.: {} {} {}", color, time, message)
                     };
                     self.messages[0].push(((*message).clone(), color.to_string(), time.to_string()));
                     self.messages[i].push(((*message).clone(), color.to_string(), time.to_string()));
