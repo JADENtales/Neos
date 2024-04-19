@@ -111,7 +111,7 @@ impl<'a> App<'a> {
                 self.panes[pane_i] = (panes[visible_pane_i].x, panes[visible_pane_i].y, panes[visible_pane_i].width, panes[visible_pane_i].height, self.panes[pane_i].4);
                 let texts = self.messages[pane_i].iter().map(|e| Line::from(e.0.as_str()).fg(Color::from_str(e.1.as_str()).unwrap())).collect::<Vec<_>>();
                 let row_count = texts.len();
-                if self.auto_scroll && 2 <= panes[visible_pane_i].height && panes[visible_pane_i].height - 2 < row_count as u16 {
+                if self.auto_scroll && 2 <= panes[visible_pane_i].height && panes[visible_pane_i].height - 2 <= row_count as u16 {
                     self.scroll[pane_i] = row_count as u16 - (panes[visible_pane_i].height - 2);
                 }
                 frame.render_widget(
