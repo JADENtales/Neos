@@ -1,5 +1,5 @@
 use chrono::{DateTime, Datelike, NaiveDateTime, TimeZone, Utc};
-use chrono_tz::{Asia::Tokyo, Tz};
+use chrono_tz::{Asia::Tokyo, Chile::Continental, Tz};
 use color_eyre::{
     eyre::{bail, WrapErr},
     Result,
@@ -33,6 +33,7 @@ pub struct App<'a> {
     pane_names: [&'a str; 7],
     messages: [Vec<(String, String)>; 7],
     scroll: [u16; 7],
+    drag: (u16, u16, usize),
     check_boxes: [(u16, u16, u16, u16); 9],
     date: NaiveDateTime,
 }
@@ -225,6 +226,16 @@ impl<'a> App<'a> {
         const SCROLL: u16 = 5;
         match event.kind {
             MouseEventKind::Down(MouseButton::Left) => {
+                for i in 0..self.panes.len() {
+                    if !self.panes[i].4 {
+                        continue;
+                    }
+                    if !(self.panes[i].0 <= event.column && event.column <= self.panes[i].0 + self.panes[i].2 && self.panes[i].1 <= event.row && event.row <= self.panes[i].1 + self.panes[i].3) {
+                        continue;
+                    }
+                    self.drag = (event.column, event.row, i);
+                    break;
+                }
                 for i in 0..self.check_boxes.len() {
                     if !(self.check_boxes[i].0 <= event.column && event.column <= self.check_boxes[i].0 + self.check_boxes[i].2 && self.check_boxes[i].1 <= event.row && event.row <= self.check_boxes[i].1 + self.check_boxes[i].3) {
                         continue;
@@ -264,7 +275,7 @@ impl<'a> App<'a> {
                     if !self.panes[i].4 {
                         continue;
                     }
-                    if !(self.panes[i].0 + self.panes[i].2 - 1 <= event.column && event.column <= self.panes[i].0 + self.panes[i].2 && self.panes[i].1 + self.panes[i].3 - 2<= event.row && event.row <= self.panes[i].1 + self.panes[i].3 - 1) {
+                    if !(self.panes[i].0 + self.panes[i].2 - 1 <= event.column && event.column <= self.panes[i].0 + self.panes[i].2 && self.panes[i].1 + self.panes[i].3 - 2 <= event.row && event.row <= self.panes[i].1 + self.panes[i].3 - 1) {
                         continue;
                     }
                     if self.panes[i].3 < 2 || self.messages[i].len() < self.panes[i].3 as usize - 2 {
@@ -278,6 +289,31 @@ impl<'a> App<'a> {
                     return Ok(());
                 }
             },
+            MouseEventKind::Drag(MouseButton::Left) => {
+                if self.auto_scroll {
+                    return Ok(());
+                }
+                if self.panes[self.drag.2].3 < 2 || self.messages[self.drag.2].len() <= self.panes[self.drag.2].3 as usize - 2 {
+                    return Ok(());
+                }
+                if event.row <= self.drag.1 {
+                    if 4 <= self.panes[self.drag.2].3 && (self.drag.1 - event.row) * (self.messages[self.drag.2].len() as u16 / (self.panes[self.drag.2].3 - 4)) <= self.scroll[self.drag.2] {
+                        self.scroll[self.drag.2] -= (self.drag.1 - event.row) * (self.messages[self.drag.2].len() as u16 / (self.panes[self.drag.2].3 - 4));
+                        self.drag = (event.column, event.row, self.drag.2);
+                        return Ok(());
+                    }
+                    self.scroll[self.drag.2] = 0;
+                    self.drag = (event.column, event.row, self.drag.2);
+                    return Ok(());
+                }
+                if 4 <= self.panes[self.drag.2].3 && self.scroll[self.drag.2] + (event.row - self.drag.1) * (self.messages[self.drag.2].len() as u16 / (self.panes[self.drag.2].3 - 4)) <= self.messages[self.drag.2].len() as u16 - (self.panes[self.drag.2].3 - 2) {
+                    self.scroll[self.drag.2] += (event.row - self.drag.1) * (self.messages[self.drag.2].len() as u16 / (self.panes[self.drag.2].3 - 4));
+                    self.drag = (event.column, event.row, self.drag.2);
+                    return Ok(());
+                }
+                self.scroll[self.drag.2] = self.messages[self.drag.2].len() as u16 - (self.panes[self.drag.2].3 - 2);
+                self.drag = (event.column, event.row, self.drag.2);
+            }
             MouseEventKind::ScrollUp => {
                 if self.auto_scroll {
                     return Ok(());
