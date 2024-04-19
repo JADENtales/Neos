@@ -13,7 +13,7 @@ use ratatui::{
         *,
     },
 };
-use std::{io, path::Path, str::FromStr, time::Duration};
+use std::{io, path::Path, process::Command, str::FromStr, time::Duration};
 use std::{fs, io::{Read, Seek, SeekFrom}, thread, time};
 use std::fs::File;
 use regex::Regex;
@@ -21,7 +21,7 @@ use regex::Regex;
 mod errors;
 mod tui;
 
-// todo title wrap date-change-test
+// todo wrap date-change-test
 
 #[derive(Debug, Default)]
 pub struct App<'a> {
@@ -41,6 +41,7 @@ pub struct App<'a> {
 
 impl<'a> App<'a> {
     pub fn run() -> Result<()> {
+        Command::new("cmd").args(["/c", "title Neos (v0.0.0)"]).output().unwrap();
         errors::install_hooks()?;
         let mut terminal = tui::init()?;
         App::default().main_loop(&mut terminal)?;
