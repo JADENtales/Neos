@@ -21,20 +21,21 @@ use regex::Regex;
 mod errors;
 mod tui;
 
-// todo drag title wrap date-change-test
+// todo title wrap date-change-test
 
 #[derive(Debug, Default)]
 pub struct App<'a> {
     exit: bool,
     file_size: u64,
+    verbose: bool,
     vertical: bool,
     auto_scroll: bool,
     panes: [(u16, u16, u16, u16, bool); 7],
     pane_names: [&'a str; 7],
-    messages: [Vec<(String, String)>; 7],
+    messages: [Vec<(String, String, String)>; 7],
     scroll: [u16; 7],
     drag: (u16, u16, usize),
-    check_boxes: [(u16, u16, u16, u16); 9],
+    check_boxes: [(u16, u16, u16, u16); 10],
     date: NaiveDateTime,
 }
 
@@ -55,6 +56,7 @@ impl<'a> App<'a> {
         self.panes[3].4 = true;
         self.panes[4].4 = true;
         self.panes[5].4 = true;
+        self.verbose = false;
         self.vertical = true;
         self.auto_scroll = true;
         self.pane_names = ["All", "Public", "Private", "Team", "Club", "System", "Server"];
@@ -76,6 +78,7 @@ impl<'a> App<'a> {
             if self.panes[4].4 { "✅ Club  " } else { "🔲 Club  " },
             if self.panes[5].4 { "✅ System  " } else { "🔲 System  " },
             if self.panes[6].4 { "✅ Server  " } else { "🔲 Server  " },
+            if self.verbose { "✅ Time  " } else { "🔲 Time  " },
             if self.vertical { "✅ Vertical  " } else { "🔲 Vertical  " },
             if self.auto_scroll { "✅ Auto scroll" } else { "🔲 Auto scroll" },
         ];
@@ -110,7 +113,7 @@ impl<'a> App<'a> {
         for pane_i in 0..self.panes.len() {
             if self.panes[pane_i].4 {
                 self.panes[pane_i] = (panes[visible_pane_i].x, panes[visible_pane_i].y, panes[visible_pane_i].width, panes[visible_pane_i].height, self.panes[pane_i].4);
-                let texts = self.messages[pane_i].iter().map(|e| Line::from(e.0.as_str()).fg(Color::from_str(e.1.as_str()).unwrap())).collect::<Vec<_>>();
+                let texts = self.messages[pane_i].iter().map(|e| Line::from(if self.verbose { format!("{}{}", e.2, e.0) } else { format!("{}", e.0) }).fg(Color::from_str(e.1.as_str()).unwrap())).collect::<Vec<_>>();
                 let row_count = texts.len();
                 if self.auto_scroll && 2 <= panes[visible_pane_i].height && panes[visible_pane_i].height - 2 <= row_count as u16 {
                     self.scroll[pane_i] = row_count as u16 - (panes[visible_pane_i].height - 2);
@@ -166,12 +169,13 @@ impl<'a> App<'a> {
         let message = cow.into_owned();
 
         let messages: Vec<_> = message.split("\r\n").filter(|e| e.trim() != "").collect();
-        let regex = Regex::new(r##" <font.+color="(.+)">(.+)</font></br>$"##).unwrap();
+        let regex = Regex::new(r##"<font.+> (.+)</font> <font.+color="(.+)">(.+)</font></br>$"##).unwrap();
         for message in messages {
             match regex.captures(&message) {
                 Some(captures) => {
-                    let color = &captures[1];
-                    let message = &captures[2].replace("&nbsp", " ");
+                    let time = &captures[1];
+                    let color = &captures[2];
+                    let message = &captures[3].replace("&nbsp", " ");
                     let i = match color {
                         "#c8ffc8" => 1,
                         "#64ff64" => 2,
@@ -181,8 +185,8 @@ impl<'a> App<'a> {
                         "#c896c8" => 6,
                         _ => bail!("invalid captured color")
                     };
-                    self.messages[0].push(((*message).clone(), color.to_string()));
-                    self.messages[i].push(((*message).clone(), color.to_string()));
+                    self.messages[0].push(((*message).clone(), color.to_string(), time.to_string()));
+                    self.messages[i].push(((*message).clone(), color.to_string(), time.to_string()));
                 }
                 _ => bail!("regex does not match."),
             }
@@ -241,10 +245,14 @@ impl<'a> App<'a> {
                         continue;
                     }
                     if i == 7 {
-                        self.vertical = !self.vertical;
+                        self.verbose = !self.verbose;
                         return Ok(());
                     }
                     if i == 8 {
+                        self.vertical = !self.vertical;
+                        return Ok(());
+                    }
+                    if i == 9 {
                         self.auto_scroll = !self.auto_scroll;
                         return Ok(());
                     }
