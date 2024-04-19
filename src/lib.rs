@@ -114,6 +114,9 @@ impl<'a> App<'a> {
                 if self.auto_scroll && 2 <= panes[visible_pane_i].height && panes[visible_pane_i].height - 2 <= row_count as u16 {
                     self.scroll[pane_i] = row_count as u16 - (panes[visible_pane_i].height - 2);
                 }
+                if 2 <= self.panes[pane_i].3 && row_count as u16 <= self.panes[pane_i].3 - 2 {
+                    self.scroll[pane_i] = 0;
+                }
                 frame.render_widget(
                     Paragraph::new(texts).scroll((self.scroll[pane_i], 0)).block(Block::new().title(Title::from(self.pane_names[pane_i])).borders(Borders::ALL)),
                     panes[visible_pane_i]);
