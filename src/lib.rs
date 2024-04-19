@@ -1,4 +1,4 @@
-use chrono::{DateTime, Datelike, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, NaiveDateTime, TimeZone, Timelike, Utc};
 use chrono_tz::{Asia::Tokyo, Chile::Continental, Tz};
 use color_eyre::{
     eyre::{bail, WrapErr},
@@ -13,7 +13,7 @@ use ratatui::{
         *,
     },
 };
-use std::{io, path::Path, process::Command, str::FromStr, time::Duration};
+use std::{io, path::Path, process::Command, str::FromStr, time::{Duration, Instant}};
 use std::{fs, io::{Read, Seek, SeekFrom}, thread, time};
 use std::fs::File;
 use regex::Regex;
@@ -57,7 +57,6 @@ impl<'a> App<'a> {
         self.panes[3].4 = true;
         self.panes[4].4 = true;
         self.panes[5].4 = true;
-        self.verbose = false;
         self.vertical = true;
         self.auto_scroll = true;
         self.pane_names = ["All", "Public", "Private", "Team", "Club", "System", "Server"];
@@ -139,38 +138,64 @@ impl<'a> App<'a> {
         let utc = Utc::now().naive_utc();
         let now = Tokyo.from_utc_datetime(&utc);
         let past = Tokyo.from_utc_datetime(&self.date);
-        let path = if past.day() == now.day() {
-            format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", now.year(), now.month(), now.day())
-        } else {
-            self.date = utc;
-            self.file_size = 0;
-            format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", past.year(), past.month(), past.day())
-        };
+        let path = format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", now.year(), now.month(), now.day());
         let path = Path::new(path.as_str());
         if !path.is_file() {
             return Ok(());
         }
+        self.date = utc;
+
         let mut file = File::open(path)?;
         let file_size = fs::metadata(path)?.len();  
-
-        let diff = file_size - self.file_size;
-        if (self.file_size == 0 || diff == 0) && past.day() == now.day() {
+        if self.file_size == 0 {
             self.file_size = file_size;
             return Ok(());
         }
+        let diff = file_size - self.file_size;
+        if diff == 0 && past.day() == now.day() {
+            return Ok(());
+        }
         self.file_size = file_size;
-        let mut content = if past.day() == now.day() {
+        let buf_size = if past.day() == now.day() {
             file.seek(SeekFrom::End(-(diff as i64)))?;
-            vec![0; diff as usize]
+            diff
         } else {
-            vec![0; file_size as usize]
+            file_size
         };
+        let mut content = vec![0; buf_size as usize];
         file.read(&mut content)?;
         let (cow, _, _) = encoding_rs::SHIFT_JIS.decode(&content);
         let message = cow.into_owned();
 
-        let messages: Vec<_> = message.split("\r\n").filter(|e| e.trim() != "").collect();
-        let regex = Regex::new(r##"<font.+> (.+)</font> <font.+color="(.+)">(.+)</font></br>$"##).unwrap();
+        // let mut extra_message = String::new();
+        // if past.day() != now.day() {
+        //     // let path = format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", now.year(), now.month(), now.day());
+        //     // test
+        //     let path = format!("TWChatLog_{}_{:>02}_{:>02}.html", now.year(), now.month(), now.day());
+        //     let path = Path::new(path.as_str());
+        //     if path.is_file() {
+        //         let mut file = File::open(path)?;
+        //         let file_size = fs::metadata(path)?.len();  
+        //         self.file_size = file_size;
+        //         let mut content = vec![0; file_size as usize];
+        //         file.read(&mut content)?;
+        //         let (cow, _, _) = encoding_rs::SHIFT_JIS.decode(&content);
+        //         let message = cow.into_owned();
+        //         let messages: Vec<_> = message.split("\r\n").filter(|e| e.trim() != "").collect();
+        //         if 5 <= messages.len() {
+        //             extra_message = messages[4..].join("\r\n");
+        //         }
+        //     }
+        // }
+        // message.push_str(&extra_message);
+
+        let mut messages: Vec<_> = message.split("\r\n").filter(|e| e.trim() != "").collect();
+        if past.day() != now.day() {
+            for _ in 0..4 {
+                messages.remove(0);
+            }
+        }
+        let regex = Regex::new(r##"^<font.+> (.+)</font> <font.+color="(.+)">(.+)</font></br>$"##).unwrap();
         for message in messages {
             match regex.captures(&message) {
                 Some(captures) => {
@@ -184,12 +209,12 @@ impl<'a> App<'a> {
                         "#94ddfa" => 4,
                         "#ff64ff" | "#ff6464" => 5,
                         "#c896c8" => 6,
-                        _ => bail!("invalid captured color")
+                        _ => bail!("invalid captured color.: {}", color)
                     };
                     self.messages[0].push(((*message).clone(), color.to_string(), time.to_string()));
                     self.messages[i].push(((*message).clone(), color.to_string(), time.to_string()));
                 }
-                _ => bail!("regex does not match."),
+                _ => bail!("regex does not match.: {}", message),
             }
         }
         Ok(())
