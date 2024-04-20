@@ -21,7 +21,7 @@ use regex::Regex;
 mod errors;
 mod tui;
 
-// todo 古いログ削除 date-change-test 
+// todo 古いログ削除　日付跨ぎを実際にテスト
 // todo wrap
 
 #[derive(Debug, Default)]
@@ -63,8 +63,12 @@ impl<'a> App<'a> {
         self.pane_names = ["All", "Public", "Private", "Team", "Club", "System", "Server"];
         while !self.exit {
             terminal.draw(|frame| self.render_frame(frame))?;
-            self.read().unwrap();
             self.handle_events().wrap_err("handle events failed")?;
+            let utc = Utc::now().naive_utc();
+            let jst = Tokyo.from_utc_datetime(&utc);
+            let path = format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", jst.year(), jst.month(), jst.day());
+            let path = Path::new(path.as_str());
+            self.read_log(path, utc).unwrap();
         }
         Ok(())
     }
@@ -135,16 +139,13 @@ impl<'a> App<'a> {
         }
     }
 
-    fn read(&mut self) -> Result<()> {
-        let utc = Utc::now().naive_utc();
-        let now = Tokyo.from_utc_datetime(&utc);
+    fn read_log(&mut self, path: &Path, date: NaiveDateTime) -> Result<()> {
+        let now = Tokyo.from_utc_datetime(&date);
         let past = Tokyo.from_utc_datetime(&self.date);
-        let path = format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", now.year(), now.month(), now.day());
-        let path = Path::new(path.as_str());
         if !path.is_file() {
             return Ok(());
         }
-        self.date = utc;
+        self.date = date;
 
         let mut file = File::open(path)?;
         let file_size = fs::metadata(path)?.len();  
@@ -156,7 +157,6 @@ impl<'a> App<'a> {
             return Ok(());
         }
         let buf_size = if past.day() == now.day() {
-            // file.seek(SeekFrom::End(-(diff as i64)))?;
             file.seek(SeekFrom::Start(self.file_size))?;
             file_size - self.file_size
         } else {
@@ -167,28 +167,6 @@ impl<'a> App<'a> {
         file.read(&mut content)?;
         let (cow, _, _) = encoding_rs::SHIFT_JIS.decode(&content);
         let message = cow.into_owned();
-
-        // let mut extra_message = String::new();
-        // if past.day() != now.day() {
-        //     // let path = format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", now.year(), now.month(), now.day());
-        //     // test
-        //     let path = format!("TWChatLog_{}_{:>02}_{:>02}.html", now.year(), now.month(), now.day());
-        //     let path = Path::new(path.as_str());
-        //     if path.is_file() {
-        //         let mut file = File::open(path)?;
-        //         let file_size = fs::metadata(path)?.len();  
-        //         self.file_size = file_size;
-        //         let mut content = vec![0; file_size as usize];
-        //         file.read(&mut content)?;
-        //         let (cow, _, _) = encoding_rs::SHIFT_JIS.decode(&content);
-        //         let message = cow.into_owned();
-        //         let messages: Vec<_> = message.split("\r\n").filter(|e| e.trim() != "").collect();
-        //         if 5 <= messages.len() {
-        //             extra_message = messages[4..].join("\r\n");
-        //         }
-        //     }
-        // }
-        // message.push_str(&extra_message);
 
         let mut messages: Vec<_> = message.split("\r\n").filter(|e| e.trim() != "").collect();
         if past.day() != now.day() {
@@ -223,7 +201,7 @@ impl<'a> App<'a> {
 
     /// updates the application's state based on user input
     fn handle_events(&mut self) -> Result<()> {
-        if poll(Duration::from_millis(1))? {
+        if poll(Duration::from_millis(10))? {
             match event::read()? {
                 // it's important to check that the event is a key press event as
                 // crossterm also emits key release and repeat events on Windows.
@@ -410,6 +388,106 @@ mod tests {
     use super::*;
 
     #[test]
-    fn handle_key_event() {
+    fn read_file_larger_past_file() {
+        let mut app = App::default();
+        let path ="test\\TWChatLog_2024_04_20.html";
+        let path = Path::new(path);
+        app.file_size = std::fs::metadata("test\\TWChatLog_2024_04_19_large.html").unwrap().len();
+        app.date = NaiveDateTime::parse_from_str("2024/04/19 00:00:00", "%Y/%m/%d %H:%M:%S").unwrap();
+        let date = NaiveDateTime::parse_from_str("2024/04/20 00:00:00", "%Y/%m/%d %H:%M:%S").unwrap();
+        app.read_log(path, date).unwrap();
+        assert_eq!(app.messages,
+            [
+                vec![
+                    (String::from("◇本日の毎日課題：ステッドを退治"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("◇本日の毎日課題：アビス深層96階以上クリア"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("◇本日の毎日課題：ピリ辛ナテスコ煮"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("?フォレスト?が1分後に「ルーンの庭園」を訪問します。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("ルーンの庭園へ訪れると、妖精や精霊たちが嬉しそうに迎えてくれます。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("プシーキーの迷宮が再設定されました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒] ")),
+                    (String::from("プラバ防衛戦が始まりました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒] ")),
+                    (String::from("[チーム経験値アップイベント] 始まりました！"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒] ")),
+                    (String::from("ランダムレイドバトルに参加できます。[ クラド ]でポータルを利用して入場してくださ"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒] ")),
+                    (String::from("い。"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒] ")),
+                    (String::from("[チーム経験値アップイベント] 実施中です！"), String::from("#ff64ff"), String::from("[ 0時  0分 59秒] ")),
+                ],
+                vec![],
+                vec![],
+                vec![],
+                vec![],
+                vec![
+                    (String::from("◇本日の毎日課題：ステッドを退治"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("◇本日の毎日課題：アビス深層96階以上クリア"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("◇本日の毎日課題：ピリ辛ナテスコ煮"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("?フォレスト?が1分後に「ルーンの庭園」を訪問します。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("ルーンの庭園へ訪れると、妖精や精霊たちが嬉しそうに迎えてくれます。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("プシーキーの迷宮が再設定されました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒] ")),
+                    (String::from("プラバ防衛戦が始まりました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒] ")),
+                    (String::from("[チーム経験値アップイベント] 始まりました！"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒] ")),
+                    (String::from("ランダムレイドバトルに参加できます。[ クラド ]でポータルを利用して入場してくださ"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒] ")),
+                    (String::from("い。"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒] ")),
+                    (String::from("[チーム経験値アップイベント] 実施中です！"), String::from("#ff64ff"), String::from("[ 0時  0分 59秒] ")),
+                ],
+                vec![],
+            ]
+        );
+    }
+
+    #[test]
+    fn read_file_smaller_past_file() {
+        let mut app = App::default();
+        let path ="test\\TWChatLog_2024_04_20.html";
+        let path = Path::new(path);
+        app.file_size = std::fs::metadata("test\\TWChatLog_2024_04_19_small.html").unwrap().len();
+        app.date = NaiveDateTime::parse_from_str("2024/04/19 00:00:00", "%Y/%m/%d %H:%M:%S").unwrap();
+        let date = NaiveDateTime::parse_from_str("2024/04/20 00:00:00", "%Y/%m/%d %H:%M:%S").unwrap();
+        app.read_log(path, date).unwrap();
+        assert_eq!(app.messages,
+            [
+                vec![
+                    (String::from("◇本日の毎日課題：ステッドを退治"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("◇本日の毎日課題：アビス深層96階以上クリア"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("◇本日の毎日課題：ピリ辛ナテスコ煮"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("?フォレスト?が1分後に「ルーンの庭園」を訪問します。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("ルーンの庭園へ訪れると、妖精や精霊たちが嬉しそうに迎えてくれます。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("プシーキーの迷宮が再設定されました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒] ")),
+                    (String::from("プラバ防衛戦が始まりました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒] ")),
+                    (String::from("[チーム経験値アップイベント] 始まりました！"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒] ")),
+                    (String::from("ランダムレイドバトルに参加できます。[ クラド ]でポータルを利用して入場してくださ"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒] ")),
+                    (String::from("い。"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒] ")),
+                    (String::from("[チーム経験値アップイベント] 実施中です！"), String::from("#ff64ff"), String::from("[ 0時  0分 59秒] ")),
+                ],
+                vec![],
+                vec![],
+                vec![],
+                vec![],
+                vec![
+                    (String::from("◇本日の毎日課題：ステッドを退治"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("◇本日の毎日課題：アビス深層96階以上クリア"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("◇本日の毎日課題：ピリ辛ナテスコ煮"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("?フォレスト?が1分後に「ルーンの庭園」を訪問します。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("ルーンの庭園へ訪れると、妖精や精霊たちが嬉しそうに迎えてくれます。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒] ")),
+                    (String::from("プシーキーの迷宮が再設定されました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒] ")),
+                    (String::from("プラバ防衛戦が始まりました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒] ")),
+                    (String::from("[チーム経験値アップイベント] 始まりました！"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒] ")),
+                    (String::from("ランダムレイドバトルに参加できます。[ クラド ]でポータルを利用して入場してくださ"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒] ")),
+                    (String::from("い。"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒] ")),
+                    (String::from("[チーム経験値アップイベント] 実施中です！"), String::from("#ff64ff"), String::from("[ 0時  0分 59秒] ")),
+                ],
+                vec![],
+            ]
+        );
+    }
+
+    #[test]
+    fn read_file_no_data() {
+        let mut app = App::default();
+        let path ="test\\TWChatLog_2024_04_20_no_data.html";
+        let path = Path::new(path);
+        app.file_size = std::fs::metadata("test\\TWChatLog_2024_04_19_large.html").unwrap().len();
+        app.date = NaiveDateTime::parse_from_str("2024/04/19 00:00:00", "%Y/%m/%d %H:%M:%S").unwrap();
+        let date = NaiveDateTime::parse_from_str("2024/04/20 00:00:00", "%Y/%m/%d %H:%M:%S").unwrap();
+        app.read_log(path, date).unwrap();
+        assert_eq!(app.messages, [vec![], vec![], vec![], vec![], vec![], vec![], vec![]]);
     }
 }
