@@ -21,7 +21,7 @@ use regex::Regex;
 mod errors;
 mod tui;
 
-// todo 古いログ削除　日付跨ぎを実際にテスト
+// todo 日付跨ぎを実際にテスト
 // todo wrap
 
 #[derive(Debug, Default)]
@@ -201,7 +201,7 @@ impl<'a> App<'a> {
 
     /// updates the application's state based on user input
     fn handle_events(&mut self) -> Result<()> {
-        if poll(Duration::from_millis(10))? {
+        if poll(Duration::from_millis(100))? {
             match event::read()? {
                 // it's important to check that the event is a key press event as
                 // crossterm also emits key release and repeat events on Windows.
