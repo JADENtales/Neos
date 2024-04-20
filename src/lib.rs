@@ -21,7 +21,8 @@ use regex::Regex;
 mod errors;
 mod tui;
 
-// todo wrap date-change-test
+// todo 古いログ削除 date-change-test 
+// todo wrap
 
 #[derive(Debug, Default)]
 pub struct App<'a> {
@@ -41,7 +42,7 @@ pub struct App<'a> {
 
 impl<'a> App<'a> {
     pub fn run() -> Result<()> {
-        Command::new("cmd").args(["/c", "title Neos (v0.0.0)"]).output().unwrap();
+        Command::new("cmd").args(["/c", "title Neos"]).output().unwrap();
         errors::install_hooks()?;
         let mut terminal = tui::init()?;
         App::default().main_loop(&mut terminal)?;
@@ -207,7 +208,7 @@ impl<'a> App<'a> {
                         "#64ff64" => 2,
                         "#f7b73c" => 3,
                         "#94ddfa" => 4,
-                        "#ff64ff" | "#ff6464" => 5,
+                        "#ff64ff" | "#ff6464" | "#64ff80" => 5,
                         "#c896c8" => 6,
                         _ => bail!("invalid captured color.: {} {} {}", color, time, message)
                     };
