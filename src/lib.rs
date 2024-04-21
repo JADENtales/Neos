@@ -5,6 +5,7 @@ use color_eyre::{
     Result,
 };
 use crossterm::{event::{self, poll, Event, KeyCode, KeyEvent, KeyEventKind, MouseButton, MouseEvent, MouseEventKind}, ExecutableCommand};
+use memmap2::Mmap;
 use ratatui::{
     prelude::*,
     symbols::border,
@@ -21,10 +22,9 @@ use regex::Regex;
 mod errors;
 mod tui;
 
-// todo 日付跨ぎを実際にテスト
 // todo wrap
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct App<'a> {
     exit: bool,
     file_size: u64,
@@ -38,6 +38,7 @@ pub struct App<'a> {
     drag: (u16, u16, usize),
     check_boxes: [(u16, u16, u16, u16); 10],
     date: NaiveDateTime,
+    file: Option<File>,
 }
 
 impl<'a> App<'a> {
@@ -45,30 +46,59 @@ impl<'a> App<'a> {
         Command::new("cmd").args(["/c", "title Neos"]).output().unwrap();
         errors::install_hooks()?;
         let mut terminal = tui::init()?;
-        App::default().main_loop(&mut terminal)?;
+        App::new().main_loop(&mut terminal)?;
         tui::restore()?;
         Ok(())
     }
 
+    fn new() -> Self {
+        App {
+            exit: false,
+            file_size: 0,
+            verbose: false,
+            vertical: true,
+            auto_scroll: true,
+            panes: [
+                (0, 0, 0, 0, true),
+                (0, 0, 0, 0, false),
+                (0, 0, 0, 0, false),
+                (0, 0, 0, 0, true),
+                (0, 0, 0, 0, true),
+                (0, 0, 0, 0, true),
+                (0, 0, 0, 0, false),
+            ],
+            pane_names: ["All", "Public", "Private", "Team", "Club", "System", "Server"],
+            messages: [Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()],
+            scroll: [0; 7],
+            drag: (0, 0, 0),
+            check_boxes: [(0, 0, 0, 0); 10],
+            date: Utc::now().naive_utc(),
+            file: None,
+        }
+    }
+
     /// runs the application's main loop until the user quits
     fn main_loop(&mut self, terminal: &mut tui::Tui) -> Result<()> {
-        std::io::stdout().execute(crossterm::event::EnableMouseCapture).unwrap();
-        self.date = Utc::now().naive_utc();
-        self.panes[0].4 = true;
-        self.panes[3].4 = true;
-        self.panes[4].4 = true;
-        self.panes[5].4 = true;
-        self.vertical = true;
-        self.auto_scroll = true;
-        self.pane_names = ["All", "Public", "Private", "Team", "Club", "System", "Server"];
+        std::io::stdout().execute(crossterm::event::EnableMouseCapture)?;
         while !self.exit {
             terminal.draw(|frame| self.render_frame(frame))?;
             self.handle_events().wrap_err("handle events failed")?;
             let utc = Utc::now().naive_utc();
-            let jst = Tokyo.from_utc_datetime(&utc);
-            let path = format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", jst.year(), jst.month(), jst.day());
-            let path = Path::new(path.as_str());
-            self.read_log(path, utc).unwrap();
+            let now = Tokyo.from_utc_datetime(&utc);
+            let past = Tokyo.from_utc_datetime(&self.date);
+            let path = format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", now.year(), now.month(), now.day());
+            let path = Path::new(&path);
+            if !path.is_file() {
+                continue;
+            }
+            if let None = self.file {
+                self.file = Some(File::open(path)?);
+            } else if past.day() != now.day() {
+                let file = self.file.take();
+                drop(file);
+                self.file = Some(File::open(path)?);
+            }
+            self.read_log(&path, utc).unwrap();
         }
         Ok(())
     }
@@ -142,12 +172,8 @@ impl<'a> App<'a> {
     fn read_log(&mut self, path: &Path, date: NaiveDateTime) -> Result<()> {
         let now = Tokyo.from_utc_datetime(&date);
         let past = Tokyo.from_utc_datetime(&self.date);
-        if !path.is_file() {
-            return Ok(());
-        }
         self.date = date;
 
-        let mut file = File::open(path)?;
         let file_size = fs::metadata(path)?.len();  
         if self.file_size == 0 {
             self.file_size = file_size;
@@ -156,15 +182,13 @@ impl<'a> App<'a> {
         if self.file_size == file_size && past.day() == now.day() {
             return Ok(());
         }
-        let buf_size = if past.day() == now.day() {
-            file.seek(SeekFrom::Start(self.file_size))?;
-            file_size - self.file_size
+        let content = unsafe { Mmap::map(self.file.as_ref().unwrap())? };
+        let content = if past.day() == now.day() {
+            &content[self.file_size as usize..file_size as usize]
         } else {
-            file_size
+            &content[..]
         };
         self.file_size = file_size;
-        let mut content = vec![0; buf_size as usize];
-        file.read(&mut content)?;
         let (cow, _, _) = encoding_rs::SHIFT_JIS.decode(&content);
         let message = cow.into_owned();
 
@@ -389,9 +413,10 @@ mod tests {
 
     #[test]
     fn read_file_larger_past_file() {
-        let mut app = App::default();
+        let mut app = App::new();
         let path ="test\\TWChatLog_2024_04_20.html";
         let path = Path::new(path);
+        app.file = Some(File::open(path).unwrap());
         app.file_size = std::fs::metadata("test\\TWChatLog_2024_04_19_large.html").unwrap().len();
         app.date = NaiveDateTime::parse_from_str("2024/04/19 00:00:00", "%Y/%m/%d %H:%M:%S").unwrap();
         let date = NaiveDateTime::parse_from_str("2024/04/20 00:00:00", "%Y/%m/%d %H:%M:%S").unwrap();
@@ -435,9 +460,10 @@ mod tests {
 
     #[test]
     fn read_file_smaller_past_file() {
-        let mut app = App::default();
+        let mut app = App::new();
         let path ="test\\TWChatLog_2024_04_20.html";
         let path = Path::new(path);
+        app.file = Some(File::open(path).unwrap());
         app.file_size = std::fs::metadata("test\\TWChatLog_2024_04_19_small.html").unwrap().len();
         app.date = NaiveDateTime::parse_from_str("2024/04/19 00:00:00", "%Y/%m/%d %H:%M:%S").unwrap();
         let date = NaiveDateTime::parse_from_str("2024/04/20 00:00:00", "%Y/%m/%d %H:%M:%S").unwrap();
@@ -481,9 +507,10 @@ mod tests {
 
     #[test]
     fn read_file_no_data() {
-        let mut app = App::default();
+        let mut app = App::new();
         let path ="test\\TWChatLog_2024_04_20_no_data.html";
         let path = Path::new(path);
+        app.file = Some(File::open(path).unwrap());
         app.file_size = std::fs::metadata("test\\TWChatLog_2024_04_19_large.html").unwrap().len();
         app.date = NaiveDateTime::parse_from_str("2024/04/19 00:00:00", "%Y/%m/%d %H:%M:%S").unwrap();
         let date = NaiveDateTime::parse_from_str("2024/04/20 00:00:00", "%Y/%m/%d %H:%M:%S").unwrap();
