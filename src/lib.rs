@@ -5,7 +5,6 @@ use color_eyre::{
     Result,
 };
 use crossterm::{event::{self, poll, Event, KeyCode, KeyEvent, KeyEventKind, MouseButton, MouseEvent, MouseEventKind}, ExecutableCommand};
-use memmap2::Mmap;
 use ratatui::{
     prelude::*,
     symbols::border,
@@ -94,8 +93,7 @@ impl<'a> App<'a> {
             if let None = self.file {
                 self.file = Some(File::open(path)?);
             } else if past.day() != now.day() {
-                let file = self.file.take();
-                drop(file);
+                drop(self.file.take());
                 self.file = Some(File::open(path)?);
             }
             self.read_log(&path, utc).unwrap();
@@ -177,17 +175,20 @@ impl<'a> App<'a> {
         let file_size = fs::metadata(path)?.len();  
         if self.file_size == 0 {
             self.file_size = file_size;
+            self.file.as_ref().unwrap().seek(SeekFrom::Start(file_size))?;
             return Ok(());
         }
         if self.file_size == file_size && past.day() == now.day() {
             return Ok(());
         }
-        let content = unsafe { Mmap::map(self.file.as_ref().unwrap())? };
-        let content = if past.day() == now.day() {
-            &content[self.file_size as usize..file_size as usize]
+        let buf_size = if past.day() == now.day() {
+            file_size - self.file_size
         } else {
-            &content[..]
+            file_size
         };
+        self.file_size = file_size;
+        let mut content = vec![0; buf_size as usize];
+        self.file.as_ref().unwrap().read(&mut content)?;
         self.file_size = file_size;
         let (cow, _, _) = encoding_rs::SHIFT_JIS.decode(&content);
         let message = cow.into_owned();
@@ -225,7 +226,7 @@ impl<'a> App<'a> {
 
     /// updates the application's state based on user input
     fn handle_events(&mut self) -> Result<()> {
-        if poll(Duration::from_millis(100))? {
+        if poll(Duration::from_millis(500))? {
             match event::read()? {
                 // it's important to check that the event is a key press event as
                 // crossterm also emits key release and repeat events on Windows.
@@ -234,7 +235,7 @@ impl<'a> App<'a> {
                         format!("handling key event failed:\n{event:#?}")
                     })
                 }
-                Event::Mouse(event) => self.handle_mouse_event(event),
+                Event::Mouse(event) if event.kind != MouseEventKind::Moved => self.handle_mouse_event(event),
                 Event::Resize(width, height) => self.handle_resize_event(width, height),
                 _ => Ok(()),
             }
