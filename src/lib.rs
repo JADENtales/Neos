@@ -83,19 +83,9 @@ impl<'a> App<'a> {
             terminal.draw(|frame| self.render_frame(frame))?;
             self.handle_events().wrap_err("handle events failed")?;
             let utc = Utc::now().naive_utc();
-            let now = Tokyo.from_utc_datetime(&utc);
-            let past = Tokyo.from_utc_datetime(&self.date);
-            let path = format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", now.year(), now.month(), now.day());
+            let jst = Tokyo.from_utc_datetime(&utc);
+            let path = format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", jst.year(), jst.month(), jst.day());
             let path = Path::new(&path);
-            if !path.is_file() {
-                continue;
-            }
-            if let None = self.file {
-                self.file = Some(File::open(path)?);
-            } else if past.day() != now.day() {
-                drop(self.file.take());
-                self.file = Some(File::open(path)?);
-            }
             self.read_log(&path, utc).unwrap();
         }
         Ok(())
@@ -168,9 +158,18 @@ impl<'a> App<'a> {
     }
 
     fn read_log(&mut self, path: &Path, date: NaiveDateTime) -> Result<()> {
+        if !path.is_file() {
+            return Ok(());
+        }
         let now = Tokyo.from_utc_datetime(&date);
         let past = Tokyo.from_utc_datetime(&self.date);
         self.date = date;
+        if let None = self.file {
+            self.file = Some(File::open(path)?);
+        } else if past.day() != now.day() {
+            drop(self.file.take());
+            self.file = Some(File::open(path)?);
+        }
 
         let file_size = fs::metadata(path)?.len();  
         if self.file_size == 0 {
