@@ -117,7 +117,7 @@ fn main() {
       }
     })
     .manage(Mutex::new(App::new()))
-    .invoke_handler(tauri::generate_handler![read_log])
+    .invoke_handler(tauri::generate_handler![read_log, get_state])
     .plugin(tauri_plugin_store::Builder::default().build())
     .run(tauri::generate_context!())
     .expect("error while running application");
@@ -135,4 +135,13 @@ fn read_log(state: tauri::State<Mutex<App>>) -> Result<Vec<Vec<(String, String, 
     }
     let app = state.lock().unwrap();
     Ok(app.messages.clone())
+}
+
+#[tauri::command]
+fn get_state(state: tauri::State<Mutex<App>>) -> Result<(bool, bool, bool), String> {
+    let state = state.lock().unwrap();
+    let verbose = state.verbose;
+    let vertical = state.vertical;
+    let auto_scroll = state.auto_scroll;
+    Ok((verbose, vertical, auto_scroll))
 }

@@ -71,7 +71,7 @@ impl App {
                 messages.remove(0);
             }
         }
-        let regex = Regex::new(r##"^<font.+> (.+)</font> <font.+color="(.+)">(.+)</font></br>$"##).unwrap();
+        let regex = Regex::new(r##"^<font.+> (.+) </font> <font.+color="(.+)">(.+)</font></br>$"##).unwrap();
         for message in messages {
             match regex.captures(&message) {
                 Some(captures) => {
