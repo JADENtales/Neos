@@ -1,0 +1,27 @@
+{
+  "name": "neos",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^1.5.4",
+    "bootstrap": "^5.3.3",
+    "next": "14.2.2",
+    "react": "^18",
+    "react-dom": "^18",
+    "tauri-plugin-store-api": "github:tauri-apps/tauri-plugin-store#v1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.2",
+    "typescript": "^5"
+  }
+}
