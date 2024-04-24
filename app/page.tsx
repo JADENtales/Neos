@@ -3,7 +3,7 @@ import styles from "./page.module.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { useEffect, useRef, useState } from "react";
 import { invoke } from '@tauri-apps/api/tauri'
-import { emit, listen } from '@tauri-apps/api/event'
+import { listen } from '@tauri-apps/api/event'
 
 export default function Home() {
   const names = ["All", "Public", "Private", "Team", "Club", "System", "Server"];
@@ -19,27 +19,34 @@ export default function Home() {
   ];
   const [messages, setMessages] = useState([...Array(names.length)].map(_ => ""));
   const [verbose, setVerbose] = useState(false);
+  const [wrap, setWrap] = useState("soft");
   const [vertical, setVertical] = useState(true);
   const [autoScroll, setAutoScroll] = useState(true);
+  type State = [boolean, string, boolean, boolean];
 
   useEffect(() => {
     const f = async () => {
       await listen('verbose', async event => {
-        const state = await invoke("get_state") as [boolean, boolean, boolean];
+        const state = await invoke("get_state") as State;
         setVerbose(state[0]);
       });
+      await listen('wrap', async event => {
+        const state = await invoke("get_state") as State;
+        setWrap(state[1]);
+      });
       await listen('vertical', async event => {
-        const state = await invoke("get_state") as [boolean, boolean, boolean];
-        setVertical(state[1]);
+        const state = await invoke("get_state") as State;
+        setVertical(state[2]);
       });
       await listen('auto_scroll', async event => {
-        const state = await invoke("get_state") as [boolean, boolean, boolean];
-        setAutoScroll(state[2]);
+        const state = await invoke("get_state") as State;
+        setAutoScroll(state[3]);
       });
-      const state = await invoke("get_state") as [boolean, boolean, boolean];
+      const state = await invoke("get_state") as State;
       setVerbose(state[0]);
-      setVertical(state[1]);
-      setAutoScroll(state[2]);
+      setWrap(state[1]);
+      setVertical(state[2]);
+      setAutoScroll(state[3]);
     };
     if (!init.current) {
       init.current = true;
@@ -73,7 +80,7 @@ export default function Home() {
         return (
           <div key={name + "_message"}>
             <label htmlFor={name.toLowerCase() + "_message"} className="form-label">{name}</label>
-            <textarea className="form-control" id={name.toLowerCase() + "_message"} value={messages[i]} rows={3} onChange={_ => {}} ref={refs[i]}></textarea>
+            <textarea className="form-control" id={name.toLowerCase() + "_message"} value={messages[i]} rows={3} onChange={_ => {}} wrap={wrap} ref={refs[i]}></textarea>
           </div>
         );
       })}
@@ -83,7 +90,7 @@ export default function Home() {
             return (
               <div className="col" key={name + "_message"}>
                 <label htmlFor={name.toLowerCase() + "_message"} className="form-label">{name}</label>
-                <textarea className={"form-control " + styles.textarea} id={name.toLowerCase() + "_message"} value={messages[i]} rows={3} onChange={_ => {}} ref={refs[i]}></textarea>
+                <textarea className={"form-control " + styles.textarea} id={name.toLowerCase() + "_message"} value={messages[i]} rows={3} onChange={_ => {}} wrap={wrap} ref={refs[i]}></textarea>
               </div>
             );
           })}
