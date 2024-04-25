@@ -229,12 +229,13 @@
 .label {
   margin: 0 !important;
   padding: 0 0 8px 0 !important; /* bootstrapのfrom-labelでmargin: 0 0 8px 0が付与されているのでpaddingに置き換え */
-  font-size: 14px;
   box-sizing: border-box;
+  color: white;
+  font-size: 14px;
 }
 
-.textarea {
+.view {
   box-sizing: border-box;
-  font-size: 14px !important;
   background-color: #343a40 !important;
+  font-size: 14px !important;
 }

@@ -6,18 +6,8 @@ import { invoke } from '@tauri-apps/api/tauri'
 import { listen } from '@tauri-apps/api/event'
 
 export default function Home() {
-  const names = ["全体", "一般", "耳打ち", "チーム", "クラブ", "システム", "叫び"];
-  const colors = ["white", "white", "orange", "cyan", "violet", "yellow", "lightgreen"];
   const init = useRef(false);
-  const textareaRefs = [
-    useRef((null as unknown) as HTMLTextAreaElement),
-    useRef((null as unknown) as HTMLTextAreaElement),
-    useRef((null as unknown) as HTMLTextAreaElement),
-    useRef((null as unknown) as HTMLTextAreaElement),
-    useRef((null as unknown) as HTMLTextAreaElement),
-    useRef((null as unknown) as HTMLTextAreaElement),
-    useRef((null as unknown) as HTMLTextAreaElement),
-  ];
+  const names = ["全体", "一般", "耳打ち", "チーム", "クラブ", "システム", "叫び"];
   const labelRefs = [
     useRef((null as unknown) as HTMLLabelElement),
     useRef((null as unknown) as HTMLLabelElement),
@@ -27,8 +17,17 @@ export default function Home() {
     useRef((null as unknown) as HTMLLabelElement),
     useRef((null as unknown) as HTMLLabelElement),
   ];
+  const divRefs = [
+    useRef((null as unknown) as HTMLDivElement),
+    useRef((null as unknown) as HTMLDivElement),
+    useRef((null as unknown) as HTMLDivElement),
+    useRef((null as unknown) as HTMLDivElement),
+    useRef((null as unknown) as HTMLDivElement),
+    useRef((null as unknown) as HTMLDivElement),
+    useRef((null as unknown) as HTMLDivElement),
+  ];
   const spacerRef = useRef((null as unknown) as HTMLDivElement);
-  const [messages, setMessages] = useState([...Array(names.length)].map(_ => ""));
+  const [messages, setMessages] = useState([...Array(names.length)].map(_ => [["", "", ""]]));
   const [views, setViews] = useState([...Array(names.length)].map(_ => true));
   const [verbose, setVerbose] = useState(false);
   const [wrap, setWrap] = useState("soft");
@@ -37,7 +36,7 @@ export default function Home() {
   type State = { verbose: boolean, wrap: string, vertical: boolean, auto_scroll: boolean };
 
   useEffect(() => {
-    const resizeTextareaImpl = () => {
+    const resizeViewImpl = () => {
       const view_count = views.filter((e: any) => e).length;
       for (let i = 0; i < views.length; ++i) {
         if (!views[i]) {
@@ -45,16 +44,16 @@ export default function Home() {
         }
         if (vertical) {
           const height = (window.innerHeight - labelRefs[i].current.offsetHeight * view_count - spacerRef.current.offsetHeight) / view_count;
-          textareaRefs[i].current.style.height = height + "px";
+          divRefs[i].current.style.height = height + "px";
         } else {
           const height = window.innerHeight - labelRefs[i].current.offsetHeight - spacerRef.current.offsetHeight;
-          textareaRefs[i].current.style.height = height + "px";
+          divRefs[i].current.style.height = height + "px";
         }
       }
     };
-    const resizeTextarea = (event: Event) => resizeTextareaImpl();
-    resizeTextareaImpl();
-    window.addEventListener("resize", resizeTextarea);
+    const resizeView = (event: Event) => resizeViewImpl();
+    resizeViewImpl();
+    window.addEventListener("resize", resizeView);
 
     const f = async () => {
       for (let i = 0; i < names.length; ++i) {
@@ -95,19 +94,14 @@ export default function Home() {
 
     const id = setInterval(async () => {
       const msgs = await invoke("read_log") as [string, string, string][][];
+      // todo オートスクロールの仕様を変えるときに、一つずつ処理する必要があるのか検討する
       for (let i = 0; i < msgs.length; ++i) {
-        const msg = msgs[i].map(e => {
-          if (verbose) {
-            return e[2] + " " + e[0];
-          }
-          return e[0];
-        }).join("\n");
-        setMessages(prev => prev.map((e, j) => i === j ? msg : e));
+        setMessages(prev => prev.map((e, j) => i === j ? msgs[i] : e));
         if (!autoScroll) {
           continue;
         }
-        if (textareaRefs[i].current !== null) {
-          textareaRefs[i].current.scrollTop = textareaRefs[i].current.scrollHeight;
+        if (divRefs[i].current !== null) {
+          divRefs[i].current.scrollTop = divRefs[i].current.scrollHeight;
         }
       }
     }, 100);
@@ -115,7 +109,7 @@ export default function Home() {
     return () => {
       console.log('clear');
       clearInterval(id);
-      window.removeEventListener("resize", resizeTextarea);
+      window.removeEventListener("resize", resizeView);
     };
   }, [verbose, vertical, autoScroll, views]);
 
@@ -125,17 +119,33 @@ export default function Home() {
         return views[i] && (
           <div key={name}>
             <label className={`pt-2 form-label ${styles.label}`} ref={labelRefs[i]}>{name}</label>
-            <textarea className={"form-control " + styles.textarea} style={{"color": colors[i]}} value={messages[i]} rows={3} onChange={_ => {}} wrap={wrap} readOnly ref={textareaRefs[i]}></textarea>
+            <div className={`form-control ${styles.view}`} style={{overflow: "auto"}} ref={divRefs[i]}>
+              {
+                messages[i].map((e, j) => {
+                  const message = verbose ? e[2] + " " + e[0] : e[0];
+                  const style = wrap === "soft" ? {color: e[1]} : {color: e[1], whiteSpace: "nowrap"};
+                  return <div key={j} style={style}>{message}</div>;
+                })
+              }
+            </div>
           </div>
         );
       })}
       {!vertical &&
-        <div className="row">
+        <div className={`row row-cols-${views.filter(e => e).length}`}>
           {names.map((name, i) => {
             return views[i] && (
               <div className="col" key={name}>
                 <label className={`pt-2 form-label ${styles.label}`} ref={labelRefs[i]}>{name}</label>
-                <textarea className={`form-control ${styles.textarea}`} style={{"color": colors[i]}} value={messages[i]} rows={3} onChange={_ => {}} wrap={wrap} readOnly ref={textareaRefs[i]}></textarea>
+                <div className={`form-control ${styles.view}`} style={{overflow: "auto"}} ref={divRefs[i]}>
+                  {
+                    messages[i].map((e, j) => {
+                      const message = verbose ? e[2] + " " + e[0] : e[0];
+                      const style = wrap === "soft" ? {color: e[1]} : {color: e[1], whiteSpace: "nowrap"};
+                      return <div key={j} style={style}>{message}</div>;
+                    })
+                  }
+                </div>
               </div>
             );
           })}
