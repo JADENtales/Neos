@@ -43,8 +43,13 @@ export default function Home() {
         if (!views[i]) {
           continue;
         }
-        const height = (window.innerHeight - labelRefs[i].current.offsetHeight * view_count - spacerRef.current.offsetHeight) / view_count;
-        textareaRefs[i].current.style.height = height + "px";
+        if (vertical) {
+          const height = (window.innerHeight - labelRefs[i].current.offsetHeight * view_count - spacerRef.current.offsetHeight) / view_count;
+          textareaRefs[i].current.style.height = height + "px";
+        } else {
+          const height = window.innerHeight - labelRefs[i].current.offsetHeight - spacerRef.current.offsetHeight;
+          textareaRefs[i].current.style.height = height + "px";
+        }
       }
     };
     const resizeTextarea = (event: Event) => resizeTextareaImpl();
@@ -112,7 +117,7 @@ export default function Home() {
       clearInterval(id);
       window.removeEventListener("resize", resizeTextarea);
     };
-  }, [verbose, autoScroll, views]);
+  }, [verbose, vertical, autoScroll, views]);
 
   return (
     <div className="container-fluid">
@@ -124,19 +129,19 @@ export default function Home() {
           </div>
         );
       })}
-      { vertical && <div className="invisible p-1" ref={spacerRef}></div>}
       {!vertical &&
         <div className="row">
           {names.map((name, i) => {
             return views[i] && (
               <div className="col" key={name}>
-                <label className="form-label" ref={labelRefs[i]}>{name}</label>
-                <textarea className={`form-control ${styles.textarea} ${styles.horizontal}`} style={{"color": colors[i]}} value={messages[i]} rows={3} onChange={_ => {}} wrap={wrap} readOnly ref={textareaRefs[i]}></textarea>
+                <label className={`pt-2 form-label ${styles.label}`} ref={labelRefs[i]}>{name}</label>
+                <textarea className={`form-control ${styles.textarea}`} style={{"color": colors[i]}} value={messages[i]} rows={3} onChange={_ => {}} wrap={wrap} readOnly ref={textareaRefs[i]}></textarea>
               </div>
             );
           })}
         </div>
       }
+      <div className="invisible p-1" ref={spacerRef}></div>
     </div>
   );
 }
