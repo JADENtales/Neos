@@ -6,7 +6,8 @@ import { invoke } from '@tauri-apps/api/tauri'
 import { listen } from '@tauri-apps/api/event'
 
 export default function Home() {
-  const names = ["All", "Public", "Private", "Team", "Club", "System", "Server"];
+  const names = ["全体", "一般", "耳打ち", "チーム", "クラブ", "システム", "叫び"];
+  const colors = ["white", "white", "orange", "cyan", "violet", "yellow", "lightgreen"];
   const init = useRef(false);
   const refs = [
     useRef((null as unknown) as HTMLTextAreaElement),
@@ -18,6 +19,7 @@ export default function Home() {
     useRef((null as unknown) as HTMLTextAreaElement),
   ];
   const [messages, setMessages] = useState([...Array(names.length)].map(_ => ""));
+  const [views, setViews] = useState([...Array(names.length)].map(_ => true));
   const [verbose, setVerbose] = useState(false);
   const [wrap, setWrap] = useState("soft");
   const [vertical, setVertical] = useState(true);
@@ -26,27 +28,35 @@ export default function Home() {
 
   useEffect(() => {
     const f = async () => {
+      for (let i = 0; i < names.length; ++i) {
+        await listen('view' + i, async event => {
+          const views = await invoke("get_views") as [boolean, boolean, boolean, boolean, boolean, boolean, boolean];
+          setViews(views);
+        });
+      }
       await listen('verbose', async event => {
-        const state = await invoke("get_state") as State;
-        setVerbose(state[0]);
+        const states = await invoke("get_states") as State;
+        setVerbose(states[0]);
       });
       await listen('wrap', async event => {
-        const state = await invoke("get_state") as State;
-        setWrap(state[1]);
+        const states = await invoke("get_states") as State;
+        setWrap(states[1]);
       });
       await listen('vertical', async event => {
-        const state = await invoke("get_state") as State;
-        setVertical(state[2]);
+        const states = await invoke("get_states") as State;
+        setVertical(states[2]);
       });
       await listen('auto_scroll', async event => {
-        const state = await invoke("get_state") as State;
-        setAutoScroll(state[3]);
+        const states = await invoke("get_states") as State;
+        setAutoScroll(states[3]);
       });
-      const state = await invoke("get_state") as State;
-      setVerbose(state[0]);
-      setWrap(state[1]);
-      setVertical(state[2]);
-      setAutoScroll(state[3]);
+      const views = await invoke("get_views") as [boolean, boolean, boolean, boolean, boolean, boolean, boolean];
+      setViews(views);
+      const states = await invoke("get_states") as State;
+      setVerbose(states[0]);
+      setWrap(states[1]);
+      setVertical(states[2]);
+      setAutoScroll(states[3]);
     };
     if (!init.current) {
       init.current = true;
@@ -75,22 +85,22 @@ export default function Home() {
   }, [verbose, autoScroll]);
 
   return (
-    <div className="container-fluid">
+    <div className="container-fluid mt-1">
       {vertical && names.map((name, i) => {
-        return (
-          <div key={name + "_message"}>
-            <label htmlFor={name.toLowerCase() + "_message"} className="form-label">{name}</label>
-            <textarea className="form-control" id={name.toLowerCase() + "_message"} value={messages[i]} rows={3} onChange={_ => {}} wrap={wrap} ref={refs[i]}></textarea>
+        return views[i] && (
+          <div className="mb-1" key={name}>
+            <label className="form-label">{name}</label>
+            <textarea className={"form-control " + styles.textarea} style={{"color": colors[i]}} value={messages[i]} rows={3} onChange={_ => {}} wrap={wrap} readOnly ref={refs[i]}></textarea>
           </div>
         );
       })}
       {!vertical &&
         <div className="row">
           {names.map((name, i) => {
-            return (
-              <div className="col" key={name + "_message"}>
-                <label htmlFor={name.toLowerCase() + "_message"} className="form-label">{name}</label>
-                <textarea className={"form-control " + styles.textarea} id={name.toLowerCase() + "_message"} value={messages[i]} rows={3} onChange={_ => {}} wrap={wrap} ref={refs[i]}></textarea>
+            return views[i] && (
+              <div className="col" key={name}>
+                <label className="form-label">{name}</label>
+                <textarea className={`form-control ${styles.textarea} ${styles.horizontal}`} style={{"color": colors[i]}} value={messages[i]} rows={3} onChange={_ => {}} wrap={wrap} readOnly ref={refs[i]}></textarea>
               </div>
             );
           })}

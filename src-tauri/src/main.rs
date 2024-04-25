@@ -130,7 +130,7 @@ fn main() {
       }
     })
     .manage(Mutex::new(App::new()))
-    .invoke_handler(tauri::generate_handler![read_log, get_state])
+    .invoke_handler(tauri::generate_handler![read_log, get_views, get_states])
     .plugin(tauri_plugin_store::Builder::default().build())
     .run(tauri::generate_context!())
     .expect("error while running application");
@@ -147,11 +147,27 @@ fn read_log(state: tauri::State<Mutex<App>>) -> Result<Vec<Vec<(String, String, 
       return Err(error.to_string());
     }
     let app = state.lock().unwrap();
+    // test
+    let mut msgs = Vec::new();
+    for i in 0..7 {
+      let mut msg = Vec::new();
+      for j in 0..10 {
+        msg.push(("これはテストメッセージですテストですので適当ですしあてになりません長さを稼ぐために何かを書いて言いますが関係ないです".to_string(), "".to_string(), "[ time ]".to_string()));
+      }
+      msgs.push(msg);
+    }
+    return Ok(msgs);
     Ok(app.messages.clone())
 }
 
 #[tauri::command]
-fn get_state(state: tauri::State<Mutex<App>>) -> Result<(bool, String, bool, bool), String> {
+fn get_views(state: tauri::State<Mutex<App>>) -> Result<Vec<bool>, String> {
+  let state = state.lock().unwrap();
+  Ok(state.views.clone())
+}
+
+#[tauri::command]
+fn get_states(state: tauri::State<Mutex<App>>) -> Result<(bool, String, bool, bool), String> {
     let state = state.lock().unwrap();
     let verbose = state.verbose;
     let wrap = state.wrap.clone();

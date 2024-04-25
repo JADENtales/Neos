@@ -28,7 +28,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "com.tauri.dev",
+      "identifier": "jaden.tales.neos",
       "longDescription": "",
       "macOS": {
         "entitlements": null,
@@ -57,8 +57,9 @@
         "fullscreen": false,
         "height": 600,
         "resizable": true,
-        "title": "neos",
-        "width": 800
+        "title": "Neos",
+        "width": 800,
+        "theme": "Dark"
       }
     ]
   }

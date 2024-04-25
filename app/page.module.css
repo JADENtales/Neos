@@ -227,7 +227,9 @@
 } */
 
 .textarea {
-  height: 80vh;
+  background-color: #343a40 !important;
+}
+
+.horizontal {
   box-sizing: border-box;
-  /* visibility: hidden; */
 }

@@ -99,3 +99,13 @@ a {
     color-scheme: dark;
   }
 } */
+
+html {
+  color-scheme: dark;
+  background-color: #212529 !important;
+}
+
+body {
+  color: white !important;
+  background-color: #212529 !important;
+}
