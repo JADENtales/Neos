@@ -10,22 +10,27 @@ pub struct App {
     pub verbose: bool,
     pub wrap: String,
     pub vertical: bool,
-    pub auto_scroll: bool,
+    pub auto_scroll: Vec<bool>,
     pub messages: Vec<Vec<(String, String, String)>>,
     file: Option<File>,
     file_size: u64,
     date: NaiveDateTime,
 }
 
+pub enum ReadStatus {
+    Ok,
+    Updated,
+    Unchanged,
+}
+
 impl App {
     pub fn new() -> Self {
-        println!("new");
         App {
             views: vec![true; 7],
             verbose: false,
             wrap: String::from("soft"),
             vertical: true,
-            auto_scroll: true,
+            auto_scroll: vec![true; 7],
             messages: vec![Vec::new(); 7],
             file: None,
             file_size: 0,
@@ -33,9 +38,9 @@ impl App {
         }
     }
 
-    pub fn read_log(&mut self, path: &Path, date: NaiveDateTime) -> Result<()> {
+    pub fn read_log(&mut self, path: &Path, date: NaiveDateTime) -> Result<ReadStatus> {
         if !path.is_file() {
-            return Ok(());
+            return Ok(ReadStatus::Ok);
         }
         let now = Tokyo.from_utc_datetime(&date);
         let past = Tokyo.from_utc_datetime(&self.date);
@@ -51,10 +56,10 @@ impl App {
         if self.file_size == 0 {
             self.file_size = file_size;
             self.file.as_ref().unwrap().seek(SeekFrom::Start(file_size))?;
-            return Ok(());
+            return Ok(ReadStatus::Ok);
         }
         if self.file_size == file_size && past.day() == now.day() {
-            return Ok(());
+            return Ok(ReadStatus::Unchanged);
         }
         let buf_size = if past.day() == now.day() {
             file_size - self.file_size
@@ -95,7 +100,7 @@ impl App {
                 _ => bail!("regex does not match.: {}", message),
             }
         }
-        Ok(())
+        Ok(ReadStatus::Updated)
     }
 }
 
@@ -145,7 +150,7 @@ mod tests {
                     (String::from("い。"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
                     (String::from("[チーム経験値アップイベント] 実施中です！"), String::from("#ff64ff"), String::from("[ 0時  0分 59秒]")),
                 ],
-                vec![],
+                vec![]
             ]
         );
     }
@@ -192,7 +197,7 @@ mod tests {
                     (String::from("い。"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
                     (String::from("[チーム経験値アップイベント] 実施中です！"), String::from("#ff64ff"), String::from("[ 0時  0分 59秒]")),
                 ],
-                vec![],
+                vec![]
             ]
         );
     }
