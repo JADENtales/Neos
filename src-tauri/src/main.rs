@@ -4,7 +4,7 @@
 use app::{App, ReadStatus};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tauri::{AppHandle, CustomMenuItem, Manager, Menu, MenuItem, Submenu, Window};
+use tauri::{CustomMenuItem, Manager, Menu, MenuItem, Submenu};
 use tauri_plugin_store::StoreBuilder;
 use std::{sync::Mutex, thread, time::Duration};
 use chrono_tz::Asia::Tokyo;
@@ -88,17 +88,6 @@ fn main() {
             continue;
           }
           let app = state.lock().unwrap();
-          // test
-          // let mut msgs = Vec::new();
-          // for i in 0..7 {
-          //   let mut msg = Vec::new();
-          //   for j in 0..10 {
-          //     msg.push(("これはテストメッセージですテストですので適当ですしあてになりません長さを稼ぐために何かを書いて言いますが関係ないです".to_string(), "".to_string(), "[ time ]".to_string()));
-          //   }
-          //   msgs.push(msg);
-          // }
-          // return Ok(msgs);
-          // Ok(app.messages.clone())
           app_handle.emit_all("read", app.messages.clone()).unwrap();
         }
       });
