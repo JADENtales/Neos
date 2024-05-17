@@ -8,7 +8,6 @@ use anyhow::{bail, Result};
 pub struct App {
     pub views: Vec<bool>,
     pub verbose: bool,
-    pub wrap: String,
     pub vertical: bool,
     pub auto_scroll: Vec<bool>,
     pub messages: Vec<Vec<(String, String, String)>>,
@@ -28,7 +27,6 @@ impl App {
         App {
             views: vec![true; 7],
             verbose: false,
-            wrap: String::from("soft"),
             vertical: true,
             auto_scroll: vec![true; 7],
             messages: vec![Vec::new(); 7],

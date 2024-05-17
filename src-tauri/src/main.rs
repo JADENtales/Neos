@@ -25,7 +25,6 @@ fn main() {
   let server = CustomMenuItem::new("view6".to_string(), "叫び");
   let separator = MenuItem::Separator;
   let verbose = CustomMenuItem::new("verbose".to_string(), "時間表示");
-  let wrap = CustomMenuItem::new("wrap".to_string(), "折り返し");
   let vertical = CustomMenuItem::new("vertical".to_string(), "縦分割");
   let view = Submenu::new("表示", Menu::new()
     .add_item(all)
@@ -37,7 +36,6 @@ fn main() {
     .add_item(server)
     .add_native_item(separator)
     .add_item(verbose)
-    .add_item(wrap)
     .add_item(vertical));
   let menu = Menu::new().add_submenu(file).add_submenu(view);
   tauri::Builder::default()
@@ -54,8 +52,6 @@ fn main() {
           }
           state.verbose = store.get("verbose").unwrap_or(&json!(state.verbose)).as_bool().unwrap();
           app.get_window("main").unwrap().menu_handle().get_item("verbose").set_selected(state.verbose)?;
-          state.wrap = store.get("wrap").unwrap_or(&json!(state.wrap)).as_str().unwrap().to_string();
-          app.get_window("main").unwrap().menu_handle().get_item("wrap").set_selected(state.wrap == "soft")?;
           state.vertical = store.get("vertical").unwrap_or(&json!(state.vertical)).as_bool().unwrap();
           app.get_window("main").unwrap().menu_handle().get_item("vertical").set_selected(state.vertical)?;
         }
@@ -67,8 +63,6 @@ fn main() {
           }
           store.insert("verbose".to_string(), json!(state.verbose))?;
           app.get_window("main").unwrap().menu_handle().get_item("verbose").set_selected(state.verbose)?;
-          store.insert("wrap".to_string(), json!(state.wrap))?;
-          app.get_window("main").unwrap().menu_handle().get_item("wrap").set_selected(state.wrap == "soft")?;
           store.insert("vertical".to_string(), json!(state.vertical))?;
           app.get_window("main").unwrap().menu_handle().get_item("vertical").set_selected(state.vertical)?;
           store.save()?;
@@ -108,13 +102,6 @@ fn main() {
           event.window().menu_handle().get_item(event.menu_item_id()).set_selected(app.verbose).unwrap();
           event.window().emit_all("verbose", app.verbose).unwrap();
         }
-        "wrap" => {
-          app.wrap = if app.wrap == "soft" { String::from("off") } else { String::from("soft") };
-          store.insert("wrap".to_string(), json!(app.wrap)).unwrap();
-          store.save().unwrap();
-          event.window().menu_handle().get_item(event.menu_item_id()).set_selected(app.wrap == "soft").unwrap();
-          event.window().emit_all("wrap", app.wrap.as_str()).unwrap();
-        }
         "vertical" => {
           app.vertical = !app.vertical;
           store.insert("vertical".to_string(), json!(app.vertical)).unwrap();
@@ -150,7 +137,6 @@ fn get_views(state: tauri::State<Mutex<App>>) -> Result<Vec<bool>, String> {
 #[derive(Serialize, Deserialize)]
 struct State {
   verbose: bool,
-  wrap: String,
   vertical: bool,
   auto_scroll: Vec<bool>,
 }
@@ -159,8 +145,7 @@ struct State {
 fn get_state(state: tauri::State<Mutex<App>>) -> Result<State, String> {
     let state = state.lock().unwrap();
     let verbose = state.verbose;
-    let wrap = state.wrap.clone();
     let vertical = state.vertical;
     let auto_scroll = state.auto_scroll.clone();
-    Ok(State { verbose, wrap, vertical, auto_scroll })
+    Ok(State { verbose, vertical, auto_scroll })
 }

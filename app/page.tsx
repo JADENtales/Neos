@@ -32,7 +32,6 @@ export default function Home() {
   const [messages, setMessages] = useState<[string, string, string][][]>([...Array(names.length)].map(_ => []));
   const [views, setViews] = useState([...Array(names.length)].map(_ => true));
   const [verbose, setVerbose] = useState(false);
-  const [wrap, setWrap] = useState("soft");
   const [vertical, setVertical] = useState(true);
   const [autoScroll, setAutoScroll] = useState([...Array(names.length).map(_ => true)]);
 
@@ -66,14 +65,10 @@ export default function Home() {
           setViews(views);
         });
       }
-      type State = { verbose: boolean, wrap: string, vertical: boolean, auto_scroll: boolean[] };
+      type State = { verbose: boolean, vertical: boolean, auto_scroll: boolean[] };
       await listen('verbose', async event => {
         const state = await invoke("get_state") as State;
         setVerbose(state.verbose);
-      });
-      await listen('wrap', async event => {
-        const state = await invoke("get_state") as State;
-        setWrap(state.wrap);
       });
       await listen('vertical', async event => {
         const state = await invoke("get_state") as State;
@@ -83,7 +78,6 @@ export default function Home() {
       setViews(views);
       const state = await invoke("get_state") as State;
       setVerbose(state.verbose);
-      setWrap(state.wrap);
       setVertical(state.vertical);
       setAutoScroll(state.auto_scroll);
     };
@@ -127,12 +121,11 @@ export default function Home() {
               <i className="bi bi-card-text text-light"></i>
               <i className="bi bi-arrow-down-short text-light"></i>
             </span>
-            <div className={`formcontrol ${styles.view}`} style={{overflow: "auto"}} ref={divRefs[i]}>
+            <div className={styles.view} style={{overflow: "auto"}} ref={divRefs[i]}>
               {
                 messages[i].map((e, j) => {
                   const message = verbose ? e[2] + " " + e[0] : e[0];
-                  const style = wrap === "soft" ? {color: e[1]} : {color: e[1], whiteSpace: "nowrap"};
-                  return <div key={j} style={style}>{message}</div>;
+                  return <div key={j} style={{color: e[1]}}>{message}</div>;
                 })
               }
             </div>
@@ -140,17 +133,20 @@ export default function Home() {
         );
       })}
       {!vertical &&
-        <div className={`row row-cols-${views.filter(e => e).length}`}>
+        <div className={`row row-cols-${views.filter(e => e).length} gx-2`}>
           {names.map((name, i) => {
             return views[i] && (
               <div className="col" key={name}>
                 <label className={`pt-2 form-label ${styles["view-label"]}`} ref={labelRefs[i]}>{name}</label>
-                <div className={`form-control ${styles.view}`} style={{overflow: "auto"}} ref={divRefs[i]}>
+                <span className={`ms-3 ${autoScroll[i] ? "" : "opacity-25"}`} onClick={toggleAutoScroll} id={"auto_scroll" + i}>
+                  <i className="bi bi-card-text text-light"></i>
+                  <i className="bi bi-arrow-down-short text-light"></i>
+                </span>
+                <div className={styles.view} style={{overflow: "auto"}} ref={divRefs[i]}>
                   {
                     messages[i].map((e, j) => {
                       const message = verbose ? e[2] + " " + e[0] : e[0];
-                      const style = wrap === "soft" ? {color: e[1]} : {color: e[1], whiteSpace: "nowrap"};
-                      return <div key={j} style={style}>{message}</div>;
+                      return <div key={j} style={{color: e[1]}}>{message}</div>;
                     })
                   }
                 </div>
