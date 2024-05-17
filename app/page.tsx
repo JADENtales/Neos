@@ -7,6 +7,10 @@ import { invoke } from '@tauri-apps/api/tauri'
 import { listen } from '@tauri-apps/api/event'
 import { emit } from '@tauri-apps/api/event';
 
+// icon
+// help
+// shortcut
+
 export default function Home() {
   const names = ["全体", "一般", "耳打ち", "チーム", "クラブ", "システム", "叫び"];
   const init = useRef(false);
@@ -36,6 +40,15 @@ export default function Home() {
   const [autoScroll, setAutoScroll] = useState([...Array(names.length).map(_ => true)]);
 
   useEffect(() => {
+    document.addEventListener('keydown', event => {
+      if (event.key === 'F5' || (event.ctrlKey && event.key === 'r')) {
+        event.preventDefault();
+      }
+    });
+    document.addEventListener('contextmenu', event => {
+      event.preventDefault();
+    });
+
     const resizeViewImpl = () => {
       const view_count = views.filter((e: any) => e).length;
       for (let i = 0; i < views.length; ++i) {
