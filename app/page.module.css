@@ -226,7 +226,7 @@
   }
 } */
 
-.label {
+.view-label {
   margin: 0 !important;
   padding: 0 0 8px 0 !important; /* bootstrapのfrom-labelでmargin: 0 0 8px 0が付与されているのでpaddingに置き換え */
   box-sizing: border-box;
@@ -235,6 +235,7 @@
 }
 
 .view {
+  user-select: text;
   box-sizing: border-box;
   background-color: #343a40 !important;
   font-size: 14px !important;

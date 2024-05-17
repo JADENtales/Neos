@@ -101,10 +101,12 @@ a {
 } */
 
 html {
+  user-select: none;
   color-scheme: dark;
   background-color: #212529 !important;
 }
 
 body {
+  user-select: none;
   background-color: #212529 !important;
 }
