@@ -6,10 +6,14 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from '@tauri-apps/api/tauri'
 import { listen } from '@tauri-apps/api/event'
 import { emit } from '@tauri-apps/api/event';
+import { message } from '@tauri-apps/api/dialog';
+import { getVersion } from "@tauri-apps/api/app";
 
 // icon
 // help
 // shortcut
+// オートスクロールするのは自分のところが更新された時だけにしたい
+// 表示切替したら一番下にスクロールする
 
 export default function Home() {
   const names = ["全体", "一般", "耳打ち", "チーム", "クラブ", "システム", "叫び"];
@@ -42,11 +46,11 @@ export default function Home() {
   useEffect(() => {
     document.addEventListener('keydown', event => {
       if (event.key === 'F5' || (event.ctrlKey && event.key === 'r')) {
-        event.preventDefault();
+        // event.preventDefault();
       }
     });
     document.addEventListener('contextmenu', event => {
-      event.preventDefault();
+      // event.preventDefault();
     });
 
     const resizeViewImpl = () => {
@@ -86,6 +90,10 @@ export default function Home() {
       await listen('vertical', async event => {
         const state = await invoke("get_state") as State;
         setVertical(state.vertical);
+      });
+      await listen('about', async event => {
+        const version = await getVersion();
+        await message(`バージョン: ${version}\n開発者X: @JADEN_tales`, { title: "Neosについて" });
       });
       const views = await invoke("get_views") as [boolean, boolean, boolean, boolean, boolean, boolean, boolean];
       setViews(views);

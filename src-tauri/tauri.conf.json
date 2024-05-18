@@ -11,7 +11,12 @@
   },
   "tauri": {
     "allowlist": {
-      "all": false
+      "dialog": {
+        "message": true
+      },
+      "app": {
+        "all": true
+      }
     },
     "bundle": {
       "active": true,
@@ -43,7 +48,10 @@
       "windows": {
         "certificateThumbprint": null,
         "digestAlgorithm": "sha256",
-        "timestampUrl": ""
+        "timestampUrl": "",
+        "wix": {
+          "language": "ja-JP"
+        }
       }
     },
     "security": {

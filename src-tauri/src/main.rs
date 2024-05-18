@@ -4,7 +4,7 @@
 use app::{App, ReadStatus};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tauri::{CustomMenuItem, Manager, Menu, MenuItem, Submenu};
+use tauri::{AboutMetadata, Builder, CustomMenuItem, Manager, Menu, MenuItem, Submenu};
 use tauri_plugin_store::StoreBuilder;
 use std::{sync::Mutex, thread, time::Duration};
 use chrono_tz::Asia::Tokyo;
@@ -37,8 +37,10 @@ fn main() {
     .add_native_item(separator)
     .add_item(verbose)
     .add_item(vertical));
-  let menu = Menu::new().add_submenu(file).add_submenu(view);
-  tauri::Builder::default()
+  let about = CustomMenuItem::new("about".to_string(), "Neosについて");
+  let help = Submenu::new("ヘルプ", Menu::new().add_item(about));
+  let menu = Menu::new().add_submenu(file).add_submenu(view).add_submenu(help);
+  Builder::default()
     .setup(|app| {
       let state = app.state() as tauri::State<Mutex<App>>;
       let mut state = state.lock().unwrap();
@@ -109,6 +111,7 @@ fn main() {
           event.window().menu_handle().get_item(event.menu_item_id()).set_selected(app.vertical).unwrap();
           event.window().emit_all("vertical", app.vertical).unwrap();
         }
+        "about" => event.window().emit_all("about", "").unwrap(),
         _ => ()
       }
       let id = event.menu_item_id();
