@@ -4,7 +4,7 @@
 use app::{App, ReadStatus};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tauri::{AboutMetadata, Builder, CustomMenuItem, Manager, Menu, MenuItem, Submenu};
+use tauri::{Builder, CustomMenuItem, Manager, Menu, MenuItem, Submenu};
 use tauri_plugin_store::StoreBuilder;
 use std::{sync::Mutex, thread, time::Duration};
 use chrono_tz::Asia::Tokyo;
@@ -16,16 +16,16 @@ const STORE_NAME: &str = "store.dat";
 fn main() {
   let exit = CustomMenuItem::new("exit".to_string(), "終了");
   let file = Submenu::new("ファイル", Menu::new().add_item(exit));
-  let all = CustomMenuItem::new("view0".to_string(), "全体");
-  let public = CustomMenuItem::new("view1".to_string(), "一般");
-  let private = CustomMenuItem::new("view2".to_string(), "耳打ち");
-  let team = CustomMenuItem::new("view3".to_string(), "チーム");
-  let club = CustomMenuItem::new("view4".to_string(), "クラブ");
-  let system = CustomMenuItem::new("view5".to_string(), "システム");
-  let server = CustomMenuItem::new("view6".to_string(), "叫び");
+  let all = CustomMenuItem::new("view0".to_string(), "全体").accelerator("Ctrl+1");
+  let public = CustomMenuItem::new("view1".to_string(), "一般").accelerator("Ctrl+2");
+  let private = CustomMenuItem::new("view2".to_string(), "耳打ち").accelerator("Ctrl+3");
+  let team = CustomMenuItem::new("view3".to_string(), "チーム").accelerator("Ctrl+4");
+  let club = CustomMenuItem::new("view4".to_string(), "クラブ").accelerator("Ctrl+5");
+  let system = CustomMenuItem::new("view5".to_string(), "システム").accelerator("Ctrl+6");
+  let server = CustomMenuItem::new("view6".to_string(), "叫び").accelerator("Ctrl+7");
   let separator = MenuItem::Separator;
-  let verbose = CustomMenuItem::new("verbose".to_string(), "時間表示");
-  let vertical = CustomMenuItem::new("vertical".to_string(), "縦分割");
+  let verbose = CustomMenuItem::new("verbose".to_string(), "時間表示").accelerator("Ctrl+T");
+  let vertical = CustomMenuItem::new("vertical".to_string(), "縦分割").accelerator("Ctrl+D");
   let view = Submenu::new("表示", Menu::new()
     .add_item(all)
     .add_item(public)
@@ -70,7 +70,7 @@ fn main() {
           store.save()?;
         }
       }
-      let app_handle = app.app_handle();
+      let app_handle = app.handle();
       thread::spawn(move || {
         loop {
           thread::sleep(Duration::from_millis(500));
@@ -86,6 +86,26 @@ fn main() {
           let app = state.lock().unwrap();
           app_handle.emit_all("read", app.messages.clone()).unwrap();
         }
+      });
+      for i in 0..state.views.len() {
+        let app_handle = app.handle();
+        let f= move |value| app_handle.get_window("main").unwrap().menu_handle().get_item(format!("view{}", i).as_str()).set_selected(value).unwrap();
+        app.handle().listen_global(format!("view_back{}", i), move |event| {
+          let payload = event.payload().unwrap() == "true";
+          f(payload);
+        });
+      }
+      let app_handle = app.handle();
+      let f= move |value| app_handle.get_window("main").unwrap().menu_handle().get_item("verbose").set_selected(value).unwrap();
+      app.handle().listen_global("verbose_back", move |event| {
+          let payload = event.payload().unwrap() == "true";
+          f(payload);
+      });
+      let app_handle = app.handle();
+      let f= move |value| app_handle.get_window("main").unwrap().menu_handle().get_item("vertical").set_selected(value).unwrap();
+      app.handle().listen_global("vertical_back", move |event| {
+          let payload = event.payload().unwrap() == "true";
+          f(payload);
       });
       Ok(())
     })
@@ -125,7 +145,7 @@ fn main() {
       }
     })
     .manage(Mutex::new(App::new()))
-    .invoke_handler(tauri::generate_handler![get_views, get_state])
+    .invoke_handler(tauri::generate_handler![get_views, get_state, get_store_name])
     .plugin(tauri_plugin_store::Builder::default().build())
     .run(tauri::generate_context!())
     .expect("error while running application");
@@ -151,4 +171,9 @@ fn get_state(state: tauri::State<Mutex<App>>) -> Result<State, String> {
     let vertical = state.vertical;
     let auto_scroll = state.auto_scroll.clone();
     Ok(State { verbose, vertical, auto_scroll })
+}
+
+#[tauri::command]
+fn get_store_name() -> String {
+  STORE_NAME.to_string()
 }
