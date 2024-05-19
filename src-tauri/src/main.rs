@@ -23,7 +23,6 @@ fn main() {
   let club = CustomMenuItem::new("view4".to_string(), "クラブ").accelerator("5");
   let system = CustomMenuItem::new("view5".to_string(), "システム").accelerator("6");
   let server = CustomMenuItem::new("view6".to_string(), "叫び").accelerator("7");
-  let separator = MenuItem::Separator;
   let all_auto_scroll = CustomMenuItem::new("auto_scroll0".to_string(), "全体").accelerator("Ctrl+1");
   let public_auto_scroll = CustomMenuItem::new("auto_scroll1".to_string(), "一般").accelerator("Ctrl+2");
   let private_auto_scroll = CustomMenuItem::new("auto_scroll2".to_string(), "耳打ち").accelerator("Ctrl+3");
@@ -39,6 +38,7 @@ fn main() {
     .add_item(club_auto_scroll)
     .add_item(system_auto_scroll)
     .add_item(server_auto_scroll));
+  let separator = MenuItem::Separator;
   let verbose = CustomMenuItem::new("verbose".to_string(), "時間表示").accelerator("T");
   let vertical = CustomMenuItem::new("vertical".to_string(), "縦分割").accelerator("D");
   let view = Submenu::new("表示", Menu::new()
@@ -53,7 +53,7 @@ fn main() {
     .add_submenu(auto_scroll)
     .add_item(verbose)
     .add_item(vertical));
-  let about = CustomMenuItem::new("about".to_string(), "Neosについて");
+  let about = CustomMenuItem::new("about".to_string(), "Neosについて...");
   let help = Submenu::new("ヘルプ", Menu::new().add_item(about));
   let menu = Menu::new().add_submenu(file).add_submenu(view).add_submenu(help);
   Builder::default()

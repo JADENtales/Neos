@@ -7,15 +7,11 @@ import { invoke } from '@tauri-apps/api/tauri'
 import { listen, emit } from '@tauri-apps/api/event'
 import { message } from '@tauri-apps/api/dialog';
 import { getVersion } from "@tauri-apps/api/app";
-import { register } from "@tauri-apps/api/globalShortcut";
 import { Store } from "tauri-plugin-store-api";
 
 // icon
-// オートスクロールするのは自分のところが更新された時だけにしたい
-// 表示切替したら一番下にスクロールする
 // 不要なcssを消す
 // コメントアウト解除
-// 最上位メニューのショートカット
 
 export default function Home() {
   const names = ["全体", "一般", "耳打ち", "チーム", "クラブ", "システム", "叫び"];
@@ -66,6 +62,9 @@ export default function Home() {
     window.addEventListener("resize", resizeView);
 
     const f = async () => {
+      document.addEventListener('contextmenu', event => {
+        // event.preventDefault();
+      });
       document.addEventListener('keydown', async event => {
         if (event.key !== "F3" && !(event.ctrlKey && event.key === "f")) {
           // event.preventDefault();
@@ -113,9 +112,6 @@ export default function Home() {
           setVertical(value);
         }
       });
-      document.addEventListener('contextmenu', event => {
-        // event.preventDefault();
-      });
       await listen('read', async event => {
         setMessages(event.payload as [[[string, string, string][], boolean]]);
       });
@@ -162,7 +158,7 @@ export default function Home() {
 
   useEffect(() => {
     for (let i = 0; i < names.length; ++i) {
-      if (!views[i] || !autoScroll[i]) {
+      if (!views[i] || !autoScroll[i] || !messages[i][1]) {
         continue;
       }
       if (divRefs[i].current !== null) {
@@ -170,6 +166,17 @@ export default function Home() {
       }
     }
   }, [messages]);
+
+  useEffect(() => {
+    for (let i = 0; i < names.length; ++i) {
+      if (!views[i]) {
+        continue;
+      }
+      if (divRefs[i].current !== null) {
+        divRefs[i].current.scrollTop = divRefs[i].current.scrollHeight;
+      }
+    }
+  }, [vertical]);
 
   const toggleAutoScroll = async (event: React.MouseEvent<HTMLDivElement>) => {
     const i = parseInt(event.currentTarget.id[event.currentTarget.id.length - 1]);
