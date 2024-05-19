@@ -9,7 +9,6 @@ import { message } from '@tauri-apps/api/dialog';
 import { getVersion } from "@tauri-apps/api/app";
 import { Store } from "tauri-plugin-store-api";
 
-// icon
 // 不要なcssを消す
 // コメントアウト解除
 
