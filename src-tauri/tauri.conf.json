@@ -33,7 +33,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "jaden.tales.neos",
+      "identifier": "Neos.JADEN",
       "longDescription": "",
       "macOS": {
         "entitlements": null,
