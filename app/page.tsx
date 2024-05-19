@@ -9,8 +9,6 @@ import { message } from '@tauri-apps/api/dialog';
 import { getVersion } from "@tauri-apps/api/app";
 import { Store } from "tauri-plugin-store-api";
 
-// コメントアウト解除
-
 export default function Home() {
   const names = ["全体", "一般", "耳打ち", "チーム", "クラブ", "システム", "叫び"];
   const init = useRef(false);
@@ -61,11 +59,11 @@ export default function Home() {
 
     const f = async () => {
       document.addEventListener('contextmenu', event => {
-        // event.preventDefault();
+        event.preventDefault();
       });
       document.addEventListener('keydown', async event => {
         if (event.key !== "F3" && !(event.ctrlKey && event.key === "f")) {
-          // event.preventDefault();
+          event.preventDefault();
         }
         for (let i = 0; i < names.length; ++i) {
           if (!event.ctrlKey && !event.shiftKey && !event.altKey && event.key === (i + 1).toString() && !event.repeat) {
