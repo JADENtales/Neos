@@ -11,12 +11,11 @@ import { register } from "@tauri-apps/api/globalShortcut";
 import { Store } from "tauri-plugin-store-api";
 
 // icon
-// shortcut
 // オートスクロールするのは自分のところが更新された時だけにしたい
 // 表示切替したら一番下にスクロールする
 // 不要なcssを消す
 // コメントアウト解除
-// オートスクロールメニュー
+// 最上位メニューのショートカット
 
 export default function Home() {
   const names = ["全体", "一般", "耳打ち", "チーム", "クラブ", "システム", "叫び"];
@@ -40,22 +39,13 @@ export default function Home() {
     useRef((null as unknown) as HTMLDivElement),
   ];
   const spacerRef = useRef((null as unknown) as HTMLDivElement);
-  const [messages, setMessages] = useState<[string, string, string][][]>([...Array(names.length)].map(_ => []));
+  const [messages, setMessages] = useState<[[string, string, string][], boolean][]>([...Array(names.length)].map(_ => [[], false]));
   const [views, setViews] = useState([...Array(names.length)].map(_ => true));
   const [verbose, setVerbose] = useState(false);
   const [vertical, setVertical] = useState(true);
   const [autoScroll, setAutoScroll] = useState([...Array(names.length).map(_ => true)]);
 
   useEffect(() => {
-    document.addEventListener('keydown', event => {
-      if (event.key === 'F5' || (event.ctrlKey && event.key === 'r')) {
-        // event.preventDefault();
-      }
-    });
-    document.addEventListener('contextmenu', event => {
-      // event.preventDefault();
-    });
-
     const resizeViewImpl = () => {
       const view_count = views.filter((e: any) => e).length;
       for (let i = 0; i < views.length; ++i) {
@@ -76,31 +66,33 @@ export default function Home() {
     window.addEventListener("resize", resizeView);
 
     const f = async () => {
-      await listen('read', async event => {
-        setMessages(event.payload as [[string, string, string][]]);
-      });
-      for (let i = 0; i < names.length; ++i) {
-        await listen('view' + i, async event => {
-          const views = await invoke("get_views") as [boolean, boolean, boolean, boolean, boolean, boolean, boolean];
-          setViews(views);
-        });
-        await register("Ctrl+" + (i + 1), async () => {
-          const store_name = await invoke("get_store_name") as string;
-          const store = new Store(store_name);
-          await store.load();
-          let value = !await store.get("view" + i);
-          await store.set("view" + i, value);
-          await store.save();
-          await emit("view_back" + i, value);
-          setViews(prev => prev.map((e, j) => j === i ? !e : e));
-        });
-      }
-      type State = { verbose: boolean, vertical: boolean, auto_scroll: boolean[] };
-      await listen('verbose', async event => {
-        const state = await invoke("get_state") as State;
-        setVerbose(state.verbose);
-      });
-      await register("Ctrl+T", async () => {
+      document.addEventListener('keydown', async event => {
+        if (event.key !== "F3" && !(event.ctrlKey && event.key === "f")) {
+          // event.preventDefault();
+        }
+        for (let i = 0; i < names.length; ++i) {
+          if (!event.ctrlKey && !event.shiftKey && !event.altKey && event.key === (i + 1).toString() && !event.repeat) {
+            const store_name = await invoke("get_store_name") as string;
+            const store = new Store(store_name);
+            await store.load();
+            let value = !await store.get("view" + i);
+            await store.set("view" + i, value);
+            await store.save();
+            await emit("view_back" + i, value);
+            setViews(prev => prev.map((e, j) => j === i ? !e : e));
+          }
+          if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === (i + 1).toString() && !event.repeat) {
+            const store_name = await invoke("get_store_name") as string;
+            const store = new Store(store_name);
+            await store.load();
+            let value = !await store.get("auto_scroll" + i);
+            await store.set("auto_scroll" + i, value);
+            await store.save();
+            await emit("auto_scroll_back" + i, value);
+            setAutoScroll(prev => prev.map((e, j) => j === i ? !e : e));
+          }
+        }
+        if (!event.ctrlKey && !event.shiftKey && !event.altKey && event.key === "t" && !event.repeat) {
           const store_name = await invoke("get_store_name") as string;
           const store = new Store(store_name);
           await store.load();
@@ -109,12 +101,8 @@ export default function Home() {
           await store.save();
           await emit("verbose_back", value);
           setVerbose(value);
-      });
-      await listen('vertical', async event => {
-        const state = await invoke("get_state") as State;
-        setVertical(state.vertical);
-      });
-      await register("Ctrl+D", async () => {
+        }
+        if (!event.ctrlKey && !event.shiftKey && !event.altKey && event.key === "d" && !event.repeat) {
           const store_name = await invoke("get_store_name") as string;
           const store = new Store(store_name);
           await store.load();
@@ -123,17 +111,42 @@ export default function Home() {
           await store.save();
           await emit("vertical_back", value);
           setVertical(value);
+        }
+      });
+      document.addEventListener('contextmenu', event => {
+        // event.preventDefault();
+      });
+      await listen('read', async event => {
+        setMessages(event.payload as [[[string, string, string][], boolean]]);
+      });
+      type State = { views: boolean[], auto_scroll: boolean[], verbose: boolean, vertical: boolean };
+      for (let i = 0; i < names.length; ++i) {
+        await listen('view' + i, async event => {
+          const state = await invoke("get_state") as State;
+          setViews(state.views);
+        });
+        await listen('auto_scroll' + i, async event => {
+          const state = await invoke("get_state") as State;
+          setAutoScroll(state.auto_scroll);
+        });
+      }
+      await listen('verbose', async event => {
+        const state = await invoke("get_state") as State;
+        setVerbose(state.verbose);
+      });
+      await listen('vertical', async event => {
+        const state = await invoke("get_state") as State;
+        setVertical(state.vertical);
       });
       await listen('about', async event => {
         const version = await getVersion();
         await message(`バージョン: ${version}\n開発者X: @JADEN_tales`, { title: "Neosについて" });
       });
-      const views = await invoke("get_views") as [boolean, boolean, boolean, boolean, boolean, boolean, boolean];
-      setViews(views);
       const state = await invoke("get_state") as State;
+      setViews(state.views);
+      setAutoScroll(state.auto_scroll);
       setVerbose(state.verbose);
       setVertical(state.vertical);
-      setAutoScroll(state.auto_scroll);
     };
     if (!init.current) {
       console.log('init')
@@ -166,6 +179,7 @@ export default function Home() {
     const value = !autoScroll[i];
     await store.set("auto_scroll" + i, value);
     await store.save();
+    await emit("auto_scroll_back" + i, value);
     setAutoScroll(prev => prev.map((e, j) => i === j ? !e : e));
   };
 
@@ -181,7 +195,7 @@ export default function Home() {
             </span>
             <div className={styles.view} style={{overflow: "auto"}} ref={divRefs[i]}>
               {
-                messages[i].map((e, j) => {
+                messages[i][0].map((e, j) => {
                   const message = verbose ? e[2] + " " + e[0] : e[0];
                   return <div key={j} style={{color: e[1]}}>{message}</div>;
                 })
@@ -202,7 +216,7 @@ export default function Home() {
                 </span>
                 <div className={styles.view} style={{overflow: "auto"}} ref={divRefs[i]}>
                   {
-                    messages[i].map((e, j) => {
+                    messages[i][0].map((e, j) => {
                       const message = verbose ? e[2] + " " + e[0] : e[0];
                       return <div key={j} style={{color: e[1]}}>{message}</div>;
                     })

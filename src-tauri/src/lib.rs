@@ -7,10 +7,10 @@ use anyhow::{bail, Result};
 #[derive(Debug)]
 pub struct App {
     pub views: Vec<bool>,
+    pub auto_scroll: Vec<bool>,
     pub verbose: bool,
     pub vertical: bool,
-    pub auto_scroll: Vec<bool>,
-    pub messages: Vec<Vec<(String, String, String)>>,
+    pub messages: Vec<(Vec<(String, String, String)>, bool)>,
     file: Option<File>,
     file_size: u64,
     date: NaiveDateTime,
@@ -29,7 +29,7 @@ impl App {
             verbose: false,
             vertical: true,
             auto_scroll: vec![true; 7],
-            messages: vec![Vec::new(); 7],
+            messages: vec![(Vec::new(), false); 7],
             file: None,
             file_size: 0,
             date: Utc::now().naive_utc(),
@@ -92,8 +92,13 @@ impl App {
                         "#c896c8" => 6,
                         _ => bail!("invalid captured color.: {} {} {}", color, time, message),
                     };
-                    self.messages[0].push(((*message).clone(), color.to_string(), time.to_string()));
-                    self.messages[i].push(((*message).clone(), color.to_string(), time.to_string()));
+                    for i in 0..self.messages.len() {
+                        self.messages[i].1 = false;
+                    }
+                    self.messages[0].0.push(((*message).clone(), color.to_string(), time.to_string()));
+                    self.messages[0].1 = true;
+                    self.messages[i].0.push(((*message).clone(), color.to_string(), time.to_string()));
+                    self.messages[i].1 = true;
                 }
                 _ => bail!("regex does not match.: {}", message),
             }
@@ -118,37 +123,43 @@ mod tests {
         app.read_log(path, date).unwrap();
         assert_eq!(app.messages,
             [
-                vec![
-                    (String::from("◇本日の毎日課題：ステッドを退治"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("◇本日の毎日課題：アビス深層96階以上クリア"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("◇本日の毎日課題：ピリ辛ナテスコ煮"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("?フォレスト?が1分後に「ルーンの庭園」を訪問します。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("ルーンの庭園へ訪れると、妖精や精霊たちが嬉しそうに迎えてくれます。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("プシーキーの迷宮が再設定されました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
-                    (String::from("プラバ防衛戦が始まりました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
-                    (String::from("[チーム経験値アップイベント] 始まりました！"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
-                    (String::from("ランダムレイドバトルに参加できます。[ クラド ]でポータルを利用して入場してくださ"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
-                    (String::from("い。"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
-                    (String::from("[チーム経験値アップイベント] 実施中です！"), String::from("#ff64ff"), String::from("[ 0時  0分 59秒]")),
-                ],
-                vec![],
-                vec![],
-                vec![],
-                vec![],
-                vec![
-                    (String::from("◇本日の毎日課題：ステッドを退治"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("◇本日の毎日課題：アビス深層96階以上クリア"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("◇本日の毎日課題：ピリ辛ナテスコ煮"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("?フォレスト?が1分後に「ルーンの庭園」を訪問します。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("ルーンの庭園へ訪れると、妖精や精霊たちが嬉しそうに迎えてくれます。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("プシーキーの迷宮が再設定されました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
-                    (String::from("プラバ防衛戦が始まりました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
-                    (String::from("[チーム経験値アップイベント] 始まりました！"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
-                    (String::from("ランダムレイドバトルに参加できます。[ クラド ]でポータルを利用して入場してくださ"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
-                    (String::from("い。"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
-                    (String::from("[チーム経験値アップイベント] 実施中です！"), String::from("#ff64ff"), String::from("[ 0時  0分 59秒]")),
-                ],
-                vec![]
+                (
+                    vec![
+                        (String::from("◇本日の毎日課題：ステッドを退治"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("◇本日の毎日課題：アビス深層96階以上クリア"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("◇本日の毎日課題：ピリ辛ナテスコ煮"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("?フォレスト?が1分後に「ルーンの庭園」を訪問します。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("ルーンの庭園へ訪れると、妖精や精霊たちが嬉しそうに迎えてくれます。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("プシーキーの迷宮が再設定されました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
+                        (String::from("プラバ防衛戦が始まりました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
+                        (String::from("[チーム経験値アップイベント] 始まりました！"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
+                        (String::from("ランダムレイドバトルに参加できます。[ クラド ]でポータルを利用して入場してくださ"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
+                        (String::from("い。"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
+                        (String::from("[チーム経験値アップイベント] 実施中です！"), String::from("#ff64ff"), String::from("[ 0時  0分 59秒]")),
+                    ],
+                    true,
+                ),
+                (vec![], false),
+                (vec![], false),
+                (vec![], false),
+                (vec![], false),
+                (
+                    vec![
+                        (String::from("◇本日の毎日課題：ステッドを退治"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("◇本日の毎日課題：アビス深層96階以上クリア"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("◇本日の毎日課題：ピリ辛ナテスコ煮"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("?フォレスト?が1分後に「ルーンの庭園」を訪問します。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("ルーンの庭園へ訪れると、妖精や精霊たちが嬉しそうに迎えてくれます。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("プシーキーの迷宮が再設定されました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
+                        (String::from("プラバ防衛戦が始まりました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
+                        (String::from("[チーム経験値アップイベント] 始まりました！"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
+                        (String::from("ランダムレイドバトルに参加できます。[ クラド ]でポータルを利用して入場してくださ"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
+                        (String::from("い。"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
+                        (String::from("[チーム経験値アップイベント] 実施中です！"), String::from("#ff64ff"), String::from("[ 0時  0分 59秒]")),
+                    ],
+                    true,
+                ),
+                (vec![], false),
             ]
         );
     }
@@ -165,37 +176,43 @@ mod tests {
         app.read_log(path, date).unwrap();
         assert_eq!(app.messages,
             [
-                vec![
-                    (String::from("◇本日の毎日課題：ステッドを退治"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("◇本日の毎日課題：アビス深層96階以上クリア"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("◇本日の毎日課題：ピリ辛ナテスコ煮"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("?フォレスト?が1分後に「ルーンの庭園」を訪問します。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("ルーンの庭園へ訪れると、妖精や精霊たちが嬉しそうに迎えてくれます。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("プシーキーの迷宮が再設定されました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
-                    (String::from("プラバ防衛戦が始まりました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
-                    (String::from("[チーム経験値アップイベント] 始まりました！"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
-                    (String::from("ランダムレイドバトルに参加できます。[ クラド ]でポータルを利用して入場してくださ"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
-                    (String::from("い。"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
-                    (String::from("[チーム経験値アップイベント] 実施中です！"), String::from("#ff64ff"), String::from("[ 0時  0分 59秒]")),
-                ],
-                vec![],
-                vec![],
-                vec![],
-                vec![],
-                vec![
-                    (String::from("◇本日の毎日課題：ステッドを退治"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("◇本日の毎日課題：アビス深層96階以上クリア"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("◇本日の毎日課題：ピリ辛ナテスコ煮"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("?フォレスト?が1分後に「ルーンの庭園」を訪問します。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("ルーンの庭園へ訪れると、妖精や精霊たちが嬉しそうに迎えてくれます。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
-                    (String::from("プシーキーの迷宮が再設定されました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
-                    (String::from("プラバ防衛戦が始まりました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
-                    (String::from("[チーム経験値アップイベント] 始まりました！"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
-                    (String::from("ランダムレイドバトルに参加できます。[ クラド ]でポータルを利用して入場してくださ"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
-                    (String::from("い。"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
-                    (String::from("[チーム経験値アップイベント] 実施中です！"), String::from("#ff64ff"), String::from("[ 0時  0分 59秒]")),
-                ],
-                vec![]
+                (
+                    vec![
+                        (String::from("◇本日の毎日課題：ステッドを退治"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("◇本日の毎日課題：アビス深層96階以上クリア"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("◇本日の毎日課題：ピリ辛ナテスコ煮"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("?フォレスト?が1分後に「ルーンの庭園」を訪問します。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("ルーンの庭園へ訪れると、妖精や精霊たちが嬉しそうに迎えてくれます。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("プシーキーの迷宮が再設定されました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
+                        (String::from("プラバ防衛戦が始まりました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
+                        (String::from("[チーム経験値アップイベント] 始まりました！"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
+                        (String::from("ランダムレイドバトルに参加できます。[ クラド ]でポータルを利用して入場してくださ"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
+                        (String::from("い。"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
+                        (String::from("[チーム経験値アップイベント] 実施中です！"), String::from("#ff64ff"), String::from("[ 0時  0分 59秒]")),
+                    ],
+                    true,
+                ),
+                (vec![], false),
+                (vec![], false),
+                (vec![], false),
+                (vec![], false),
+                (
+                    vec![
+                        (String::from("◇本日の毎日課題：ステッドを退治"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("◇本日の毎日課題：アビス深層96階以上クリア"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("◇本日の毎日課題：ピリ辛ナテスコ煮"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("?フォレスト?が1分後に「ルーンの庭園」を訪問します。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("ルーンの庭園へ訪れると、妖精や精霊たちが嬉しそうに迎えてくれます。"), String::from("#ff64ff"), String::from("[ 0時  0分  0秒]")),
+                        (String::from("プシーキーの迷宮が再設定されました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
+                        (String::from("プラバ防衛戦が始まりました。"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
+                        (String::from("[チーム経験値アップイベント] 始まりました！"), String::from("#ff64ff"), String::from("[ 0時  0分  1秒]")),
+                        (String::from("ランダムレイドバトルに参加できます。[ クラド ]でポータルを利用して入場してくださ"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
+                        (String::from("い。"), String::from("#ff64ff"), String::from("[ 0時  0分  2秒]")),
+                        (String::from("[チーム経験値アップイベント] 実施中です！"), String::from("#ff64ff"), String::from("[ 0時  0分 59秒]")),
+                    ],
+                    true,
+                ),
+                (vec![], false),
             ]
         );
     }
@@ -210,6 +227,6 @@ mod tests {
         app.date = NaiveDateTime::parse_from_str("2024/04/19 00:00:00", "%Y/%m/%d %H:%M:%S").unwrap();
         let date = NaiveDateTime::parse_from_str("2024/04/20 00:00:00", "%Y/%m/%d %H:%M:%S").unwrap();
         app.read_log(path, date).unwrap();
-        assert_eq!(app.messages, [vec![], vec![], vec![], vec![], vec![], vec![], vec![]]);
+        assert_eq!(app.messages, [(vec![], false), (vec![], false), (vec![], false), (vec![], false), (vec![], false), (vec![], false), (vec![], false)]);
     }
 }

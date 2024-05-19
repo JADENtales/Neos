@@ -16,9 +16,6 @@
       },
       "app": {
         "all": true
-      },
-      "globalShortcut": {
-        "all": true
       }
     },
     "bundle": {
