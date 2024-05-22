@@ -76,6 +76,9 @@ impl App {
                 messages.remove(0);
             }
         }
+        for i in 0..self.messages.len() {
+            self.messages[i].1 = false;
+        }
         let regex = Regex::new(r##"^<font.+> (.+) </font> <font.+color="(.+)">(.+)</font></br>$"##).unwrap();
         for message in messages {
             match regex.captures(&message) {
@@ -92,9 +95,6 @@ impl App {
                         "#c896c8" => 6,
                         _ => bail!("invalid captured color.: {} {} {}", color, time, message),
                     };
-                    for i in 0..self.messages.len() {
-                        self.messages[i].1 = false;
-                    }
                     self.messages[0].0.push(((*message).clone(), color.to_string(), time.to_string()));
                     self.messages[0].1 = true;
                     self.messages[i].0.push(((*message).clone(), color.to_string(), time.to_string()));
