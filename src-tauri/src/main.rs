@@ -97,9 +97,12 @@ fn main() {
           let path = format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", jst.year(), jst.month(), jst.day());
           let path = Path::new(&path);
           let state = app_handle.state() as tauri::State<Mutex<App>>;
-          let result = state.lock().unwrap().read_log(path, utc).unwrap();
-          if let ReadStatus::Unchanged = result {
+          let result = state.lock().unwrap().read_log(path, utc);
+          if let Ok(ReadStatus::Unchanged) = result {
             continue;
+          } else if let Err(_) = result {
+            app_handle.get_window("main").unwrap().emit_all("error", "").unwrap();
+            panic!("App::read_log error.");
           }
           let app = state.lock().unwrap();
           app_handle.emit_all("read", app.messages.clone()).unwrap();

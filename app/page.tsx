@@ -134,6 +134,9 @@ export default function Home() {
         const version = await getVersion();
         await message(`バージョン: ${version}\n開発者X: @JADEN_tales`, { title: "Neosについて" });
       });
+      await listen('error', async event => {
+        await message("エラーが発生しました。ソフトを再起動してください。", { title: "エラー", type: "error" });
+      });
       const state = await invoke("get_state") as State;
       setViews(state.views);
       setAutoScroll(state.auto_scroll);
