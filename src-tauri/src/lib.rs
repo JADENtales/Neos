@@ -107,6 +107,23 @@ impl App {
     }
     Ok(ReadStatus::Updated)
   }
+
+  pub fn get_messages(&self) -> Vec<(Vec<(String, String, String)>, bool)> {
+    if self.limit {
+      let mut messages = vec![(Vec::new(), false); 7];
+      for i in 0..self.messages.len() {
+        if 500 < self.messages[i].0.len() {
+          messages[i].0 = (&(self.messages[i].0)[self.messages[i].0.len() - 500..self.messages[i].0.len()]).to_vec();
+        } else {
+          messages[i].0 = self.messages[i].0.clone();
+        }
+        messages[i].1 = self.messages[i].1;
+      }
+      messages
+    } else {
+      self.messages.clone()
+    }
+  }
 }
 
 #[cfg(test)]

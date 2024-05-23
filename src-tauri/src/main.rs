@@ -103,28 +103,15 @@ fn main() {
           let path = format!("C:\\Nexon\\TalesWeaver\\ChatLog\\TWChatLog_{}_{:>02}_{:>02}.html", jst.year(), jst.month(), jst.day());
           let path = Path::new(&path);
           let state = app_handle.state() as tauri::State<Mutex<App>>;
-          let result = state.lock().unwrap().read_log(path, utc);
+          let mut app = state.lock().unwrap();
+          let result = app.read_log(path, utc);
           if let Ok(ReadStatus::Unchanged) = result {
             continue;
           } else if let Err(_) = result {
             app_handle.get_window("main").unwrap().emit_all("error", "").unwrap();
             panic!("App::read_log error.");
           }
-          let app = state.lock().unwrap();
-          let messages = if app.limit {
-            let mut messages = vec![(Vec::new(), false); 7];
-            for i in 0..app.messages.len() {
-              if 500 < app.messages[i].0.len() {
-                messages[i].0 = (&(app.messages[i].0)[app.messages[i].0.len() - 500..app.messages[i].0.len()]).to_vec();
-              } else {
-                messages[i].0 = app.messages[i].0.clone();
-              }
-              messages[i].1 = app.messages[i].1;
-            }
-            messages
-          } else {
-            app.messages.clone()
-          };
+          let messages = app.get_messages();
           app_handle.emit_all("read", messages).unwrap();
         }
       });
@@ -222,12 +209,12 @@ struct State {
 
 #[tauri::command]
 fn get_state(state: tauri::State<Mutex<App>>) -> Result<State, String> {
-    let state = state.lock().unwrap();
-    let views = state.views.clone();
-    let auto_scroll = state.auto_scroll.clone();
-    let verbose = state.verbose;
-    let vertical = state.vertical;
-    Ok(State { views, auto_scroll, verbose, vertical })
+  let state = state.lock().unwrap();
+  let views = state.views.clone();
+  let auto_scroll = state.auto_scroll.clone();
+  let verbose = state.verbose;
+  let vertical = state.vertical;
+  Ok(State { views, auto_scroll, verbose, vertical })
 }
 
 #[tauri::command]
