@@ -41,6 +41,7 @@ fn main() {
   let separator = MenuItem::Separator;
   let verbose = CustomMenuItem::new("verbose".to_string(), "時間表示").accelerator("T");
   let vertical = CustomMenuItem::new("vertical".to_string(), "縦分割").accelerator("D");
+  let limit = CustomMenuItem::new("limit".to_string(), "表示制限 (500行)");
   let view = Submenu::new("表示", Menu::new()
     .add_item(all)
     .add_item(public)
@@ -52,7 +53,8 @@ fn main() {
     .add_native_item(separator)
     .add_submenu(auto_scroll)
     .add_item(verbose)
-    .add_item(vertical));
+    .add_item(vertical)
+    .add_item(limit));
   let about = CustomMenuItem::new("about".to_string(), "Neosについて...");
   let help = Submenu::new("ヘルプ", Menu::new().add_item(about));
   let menu = Menu::new().add_submenu(file).add_submenu(view).add_submenu(help);
@@ -73,6 +75,8 @@ fn main() {
           app.get_window("main").unwrap().menu_handle().get_item("verbose").set_selected(state.verbose)?;
           state.vertical = store.get("vertical").unwrap_or(&json!(state.vertical)).as_bool().unwrap();
           app.get_window("main").unwrap().menu_handle().get_item("vertical").set_selected(state.vertical)?;
+          state.limit = store.get("limit").unwrap_or(&json!(state.limit)).as_bool().unwrap();
+          app.get_window("main").unwrap().menu_handle().get_item("limit").set_selected(state.limit)?;
         }
         _ => {
           for i in 0..state.views.len() {
@@ -85,6 +89,8 @@ fn main() {
           app.get_window("main").unwrap().menu_handle().get_item("verbose").set_selected(state.verbose)?;
           store.insert("vertical".to_string(), json!(state.vertical))?;
           app.get_window("main").unwrap().menu_handle().get_item("vertical").set_selected(state.vertical)?;
+          store.insert("limit".to_string(), json!(state.limit))?;
+          app.get_window("main").unwrap().menu_handle().get_item("limit").set_selected(state.limit)?;
           store.save()?;
         }
       }
@@ -105,7 +111,21 @@ fn main() {
             panic!("App::read_log error.");
           }
           let app = state.lock().unwrap();
-          app_handle.emit_all("read", app.messages.clone()).unwrap();
+          let messages = if app.limit {
+            let mut messages = vec![(Vec::new(), false); 7];
+            for i in 0..app.messages.len() {
+              if 500 < app.messages[i].0.len() {
+                messages[i].0 = (&(app.messages[i].0)[app.messages[i].0.len() - 500..app.messages[i].0.len()]).to_vec();
+              } else {
+                messages[i].0 = app.messages[i].0.clone();
+              }
+              messages[i].1 = app.messages[i].1;
+            }
+            messages
+          } else {
+            app.messages.clone()
+          };
+          app_handle.emit_all("read", messages).unwrap();
         }
       });
       for i in 0..state.views.len() {
@@ -157,6 +177,12 @@ fn main() {
           store.save().unwrap();
           event.window().menu_handle().get_item(event.menu_item_id()).set_selected(app.vertical).unwrap();
           event.window().emit_all("vertical", app.vertical).unwrap();
+        }
+        "limit" => {
+          app.limit = !app.limit;
+          store.insert("limit".to_string(), json!(app.limit)).unwrap();
+          store.save().unwrap();
+          event.window().menu_handle().get_item(event.menu_item_id()).set_selected(app.limit).unwrap();
         }
         "about" => event.window().emit_all("about", "").unwrap(),
         _ => ()
