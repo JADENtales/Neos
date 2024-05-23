@@ -248,4 +248,66 @@ mod tests {
     app.read_log(path, date).unwrap();
     assert_eq!(app.messages, [(vec![], false), (vec![], false), (vec![], false), (vec![], false), (vec![], false), (vec![], false), (vec![], false)]);
   }
+
+  #[test]
+  fn get_messages() {
+    let mut app = App::new();
+    for i in 0..app.messages.len() {
+      app.messages[i].0.push(("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string()));
+      app.messages[i].1 = true;
+    }
+    assert_eq!(app.get_messages(), [
+      (vec![("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string())], true),
+      (vec![("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string())], true),
+      (vec![("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string())], true),
+      (vec![("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string())], true),
+      (vec![("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string())], true),
+      (vec![("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string())], true),
+      (vec![("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string())], true),
+    ]);
+
+    for i in 0..app.messages.len() {
+      app.messages[i].0 = Vec::new();
+      for _ in 0..600 {
+        app.messages[i].0.push(("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string()));
+        app.messages[i].1 = true;
+      }
+    }
+    let mut expected = Vec::new();
+    for _ in 0..500 {
+      expected.push(("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string()));
+    }
+    assert_eq!(app.get_messages(), [
+      (expected.clone(), true),
+      (expected.clone(), true),
+      (expected.clone(), true),
+      (expected.clone(), true),
+      (expected.clone(), true),
+      (expected.clone(), true),
+      (expected.clone(), true),
+    ]);
+
+    for i in 0..app.messages.len() {
+      app.messages[i].0 = Vec::new();
+      app.messages[i].0.push(("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string()));
+      app.messages[i].1 = true;
+    }
+    for _ in 0..600 {
+      app.messages[1].0.push(("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string()));
+      app.messages[1].1 = true;
+    }
+    let mut expected = Vec::new();
+    for _ in 0..500 {
+      expected.push(("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string()));
+    }
+    assert_eq!(app.get_messages(), [
+      (vec![("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string())], true),
+      (expected, true),
+      (vec![("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string())], true),
+      (vec![("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string())], true),
+      (vec![("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string())], true),
+      (vec![("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string())], true),
+      (vec![("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string())], true),
+    ]);
+  }
 }
