@@ -1,12 +1,13 @@
-use std::{fs, path::Path, fs::File, io::{Read, Seek, SeekFrom}};
+use std::{fs::{self, File}, io::{Read, Seek, SeekFrom}, path::Path};
 use regex::Regex;
 use chrono_tz::Asia::Tokyo;
-use chrono::{Datelike, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Duration, NaiveDateTime, TimeZone, Timelike, Utc};
 use anyhow::{bail, Result};
 
 #[derive(Debug)]
 pub struct App {
   pub views: Vec<bool>,
+  pub exp: bool,
   pub auto_scroll: Vec<bool>,
   pub verbose: bool,
   pub vertical: bool,
@@ -27,6 +28,7 @@ impl App {
   pub fn new() -> Self {
     App {
       views: vec![true; 7],
+      exp: false,
       verbose: false,
       vertical: true,
       auto_scroll: vec![true; 7],
@@ -123,6 +125,48 @@ impl App {
     } else {
       self.messages.clone()
     }
+  }
+
+  pub fn calc_exp(&self, now: NaiveDateTime) -> (i64, i64, i64) {
+    let mut total_exp = 0 as i64;
+    let span = 3;
+    for i in (0..self.messages[5].0.len()).rev() {
+      let message = &self.messages[5].0[i];
+      let regex = Regex::new(r##"経験値が (\d+) 上がりました。"##).unwrap();
+      match regex.captures(&message.0) {
+        Some(captures) => {
+          let regex = Regex::new(r##"\[\s?(\d+)時\s+(\d+)分\s+(\d+)秒\]"##).unwrap();
+          match regex.captures(&message.2) {
+            Some(caps) => {
+              let hour = &caps[1];
+              let minute = &caps[2];
+              let second = &caps[3];
+              let now = Tokyo.from_utc_datetime(&now);
+              let now = DateTime::parse_from_str(format!("{}{:0>2}{:0>2}{:0>2}{:0>2}{:0>2} +0900", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second()).as_str(), "%Y%m%d%H%M%S %z").unwrap();
+              let time = DateTime::parse_from_str(format!("{}{:0>2}{:0>2}{:0>2}{:0>2}{:0>2} +0900", now.year(), now.month(), now.day(), hour, minute, second).as_str(), "%Y%m%d%H%M%S %z").unwrap();
+              let end = now - Duration::seconds(span);
+              let time = if now.day() != end.day() && time.hour() == 23 {
+                time - Duration::days(1)
+              } else {
+                time
+              };
+              if end <= time {
+                let exp = (&captures[1]).parse::<i64>().unwrap();
+                total_exp += exp;
+              } else {
+                break;
+              }
+            }
+            _ => (),
+          }
+        }
+        _ => (),
+      }
+    }
+    let exp_per_second = total_exp / span;
+    let exp_per_minute = exp_per_second * 60;
+    let exp_per_hour = exp_per_minute * 60;
+    (exp_per_second, exp_per_minute, exp_per_hour)
   }
 }
 
@@ -309,5 +353,62 @@ mod tests {
       (vec![("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string())], true),
       (vec![("test message".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string())], true),
     ]);
+  }
+
+  #[test]
+  fn calc_exp() {
+    let mut app = App::new();
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  1秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  2秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  3秒]".to_string()));
+    app.messages[5].1 = true;
+    let now = NaiveDateTime::parse_from_str("2000/01/01 15:00:3", "%Y/%m/%d %H:%M:%S").unwrap();
+    let exp = app.calc_exp(now);
+    assert_eq!(exp, (40000, 40000 * 60, 40000 * 60 * 60));
+
+    let mut app = App::new();
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  1秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  1秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  2秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  2秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  3秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  3秒]".to_string()));
+    app.messages[5].1 = true;
+    let now = NaiveDateTime::parse_from_str("2000/01/01 15:00:3", "%Y/%m/%d %H:%M:%S").unwrap();
+    let exp = app.calc_exp(now);
+    assert_eq!(exp, (240000 / 3, 240000 / 3 * 60, 240000 / 3 * 60 * 60));
+
+    let mut app = App::new();
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  3秒]".to_string()));
+    app.messages[5].1 = true;
+    let now = NaiveDateTime::parse_from_str("2000/01/01 15:00:3", "%Y/%m/%d %H:%M:%S").unwrap();
+    let exp = app.calc_exp(now);
+    assert_eq!(exp, (20000, 20000 * 60, 20000 * 60 * 60));
+
+    app.messages[5].0.clear();
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  1秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  2秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  3秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  4秒]".to_string()));
+    app.messages[5].1 = true;
+    let now = NaiveDateTime::parse_from_str("2000/01/01 15:00:4", "%Y/%m/%d %H:%M:%S").unwrap();
+    let exp = app.calc_exp(now);
+    assert_eq!(exp, (40000, 40000 * 60, 40000 * 60 * 60));
+
+    app.messages[5].0.clear();
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[23時 59分 57秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[23時 59分 58秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[23時 59分 59秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  0秒]".to_string()));
+    app.messages[5].0.push(("経験値が 30000 上がりました。".to_string(), "#000000".to_string(), "[ 0時  0分  1秒]".to_string()));
+    app.messages[5].1 = true;
+    let now = NaiveDateTime::parse_from_str("2000/01/01 15:00:1", "%Y/%m/%d %H:%M:%S").unwrap();
+    let exp = app.calc_exp(now);
+    assert_eq!(exp, (40000, 40000 * 60, 40000 * 60 * 60));
   }
 }

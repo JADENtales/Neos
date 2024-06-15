@@ -12,16 +12,17 @@ import { Store } from "tauri-plugin-store-api";
 export default function Home() {
   const names = ["全体", "一般", "耳打ち", "チーム", "クラブ", "システム", "叫び"];
   const init = useRef(false);
+  const expRef = useRef((null as unknown) as HTMLDivElement);
   const labelRefs = [
-    useRef((null as unknown) as HTMLLabelElement),
-    useRef((null as unknown) as HTMLLabelElement),
-    useRef((null as unknown) as HTMLLabelElement),
-    useRef((null as unknown) as HTMLLabelElement),
-    useRef((null as unknown) as HTMLLabelElement),
-    useRef((null as unknown) as HTMLLabelElement),
-    useRef((null as unknown) as HTMLLabelElement),
+    useRef((null as unknown) as HTMLSpanElement),
+    useRef((null as unknown) as HTMLSpanElement),
+    useRef((null as unknown) as HTMLSpanElement),
+    useRef((null as unknown) as HTMLSpanElement),
+    useRef((null as unknown) as HTMLSpanElement),
+    useRef((null as unknown) as HTMLSpanElement),
+    useRef((null as unknown) as HTMLSpanElement),
   ];
-  const divRefs = [
+  const messageRefs = [
     useRef((null as unknown) as HTMLDivElement),
     useRef((null as unknown) as HTMLDivElement),
     useRef((null as unknown) as HTMLDivElement),
@@ -33,6 +34,8 @@ export default function Home() {
   const spacerRef = useRef((null as unknown) as HTMLDivElement);
   const [messages, setMessages] = useState<[[string, string, string][], boolean][]>([...Array(names.length)].map(_ => [[], false]));
   const [views, setViews] = useState([...Array(names.length)].map(_ => true));
+  const [exp, setExp] = useState([0, 0, 0]);
+  const [expVisible, setExpVisible] = useState(false);
   const [verbose, setVerbose] = useState(false);
   const [vertical, setVertical] = useState(true);
   const [autoScroll, setAutoScroll] = useState([...Array(names.length).map(_ => true)]);
@@ -45,11 +48,13 @@ export default function Home() {
           continue;
         }
         if (vertical) {
-          const height = (window.innerHeight - labelRefs[i].current.offsetHeight * view_count - spacerRef.current.offsetHeight) / view_count;
-          divRefs[i].current.style.height = height + "px";
+          const expHeight = expRef.current === null ? 0 : expRef.current.offsetHeight;
+          const height = (window.innerHeight - expHeight - labelRefs[i].current.offsetHeight * view_count - spacerRef.current.offsetHeight) / view_count;
+          messageRefs[i].current.style.height = height + "px";
         } else {
-          const height = window.innerHeight - labelRefs[i].current.offsetHeight - spacerRef.current.offsetHeight;
-          divRefs[i].current.style.height = height + "px";
+          const expHeight = expRef.current === null ? 0 : expRef.current.offsetHeight;
+          const height = window.innerHeight - expHeight - labelRefs[i].current.offsetHeight - spacerRef.current.offsetHeight;
+          messageRefs[i].current.style.height = height + "px";
         }
       }
     };
@@ -87,6 +92,16 @@ export default function Home() {
             setAutoScroll(prev => prev.map((e, j) => j === i ? !e : e));
           }
         }
+        if (!event.ctrlKey && !event.shiftKey && !event.altKey && event.key === "0" && !event.repeat) {
+          const store_name = await invoke("get_store_name") as string;
+          const store = new Store(store_name);
+          await store.load();
+          let value = !await store.get("exp");
+          await store.set("exp", value);
+          await store.save();
+          await emit("exp_visible_back", value);
+          setExpVisible(value);
+        }
         if (!event.ctrlKey && !event.shiftKey && !event.altKey && event.key === "t" && !event.repeat) {
           const store_name = await invoke("get_store_name") as string;
           const store = new Store(store_name);
@@ -111,7 +126,7 @@ export default function Home() {
       await listen('read', async event => {
         setMessages(event.payload as [[[string, string, string][], boolean]]);
       });
-      type State = { views: boolean[], auto_scroll: boolean[], verbose: boolean, vertical: boolean };
+      type State = { views: boolean[], exp: boolean, auto_scroll: boolean[], verbose: boolean, vertical: boolean };
       for (let i = 0; i < names.length; ++i) {
         await listen('view' + i, async event => {
           const state = await invoke("get_state") as State;
@@ -122,6 +137,13 @@ export default function Home() {
           setAutoScroll(state.auto_scroll);
         });
       }
+      await listen('exp', async event => {
+        setExp(event.payload as [number, number, number]);
+      });
+      await listen('exp_visible', async event => {
+        const state = await invoke("get_state") as State;
+        setExpVisible(state.exp);
+      });
       await listen('verbose', async event => {
         const state = await invoke("get_state") as State;
         setVerbose(state.verbose);
@@ -138,30 +160,29 @@ export default function Home() {
         await message("エラーが発生しました。ソフトを再起動してください。", { title: "エラー", type: "error" });
       });
       const state = await invoke("get_state") as State;
+      setExpVisible(state.exp);
       setViews(state.views);
       setAutoScroll(state.auto_scroll);
       setVerbose(state.verbose);
       setVertical(state.vertical);
     };
     if (!init.current) {
-      console.log('init')
       init.current = true;
       f();
     }
 
     return () => {
-      console.log('clear');
       window.removeEventListener("resize", resizeView);
     };
-  }, [vertical, views, autoScroll]);
+  }, [expVisible, vertical, views, autoScroll]);
 
   useEffect(() => {
     for (let i = 0; i < names.length; ++i) {
       if (!views[i] || !autoScroll[i] || !messages[i][1]) {
         continue;
       }
-      if (divRefs[i].current !== null) {
-        divRefs[i].current.scrollTop = divRefs[i].current.scrollHeight;
+      if (messageRefs[i].current !== null) {
+        messageRefs[i].current.scrollTop = messageRefs[i].current.scrollHeight;
       }
     }
   }, [messages]);
@@ -171,8 +192,8 @@ export default function Home() {
       if (!views[i]) {
         continue;
       }
-      if (divRefs[i].current !== null) {
-        divRefs[i].current.scrollTop = divRefs[i].current.scrollHeight;
+      if (messageRefs[i].current !== null) {
+        messageRefs[i].current.scrollTop = messageRefs[i].current.scrollHeight;
       }
     }
   }, [vertical]);
@@ -189,17 +210,38 @@ export default function Home() {
     setAutoScroll(prev => prev.map((e, j) => i === j ? !e : e));
   };
 
+  const toCommaString = (value: number): string => {
+    const s = value.toString().split("").reverse().join("");
+    const commaNum = Math.trunc((s.length - 1) / 3);
+    let r = "";
+    for (let i = 0; i < commaNum; ++i) {
+      r += s.substring(i * 3, i * 3 + 3) + ",";
+    }
+    r += s.substring(commaNum * 3);
+    return r.split("").reverse().join("");
+  };
+
   return (
     <div className="container-fluid">
+      {
+        expVisible && (
+          <div ref={expRef}>
+            <div className={`pt-1 pb-1 ${styles["view-label"]}`}>経験値</div>
+            <div className={styles.exp}>{toCommaString(exp[0])}/秒</div>
+            <div className={styles.exp}>{toCommaString(exp[1])}/分</div>
+            <div className={styles.exp}>{toCommaString(exp[2])}/時</div>
+          </div>
+        )
+      }
       {vertical && names.map((name, i) => {
         return views[i] && (
           <div key={name}>
-            <label className={`pt-2 form-label ${styles["view-label"]}`} ref={labelRefs[i]}>{name}</label>
+            <span className={`d-inline-block pt-1 pb-1 ${styles["view-label"]}`} ref={labelRefs[i]}>{name}</span>
             <span className={`ms-3 ${autoScroll[i] ? "" : "opacity-25"}`} onClick={toggleAutoScroll} id={"auto_scroll" + i}>
               <i className="bi bi-card-text text-light"></i>
               <i className="bi bi-arrow-down-short text-light"></i>
             </span>
-            <div className={styles.view} style={{overflow: "auto"}} ref={divRefs[i]}>
+            <div className={styles.view} style={{overflow: "auto"}} ref={messageRefs[i]}>
               {
                 messages[i][0].map((e, j) => {
                   const message = verbose ? e[2] + " " + e[0] : e[0];
@@ -215,12 +257,14 @@ export default function Home() {
           {names.map((name, i) => {
             return views[i] && (
               <div className="col" key={name}>
-                <label className={`pt-2 form-label ${styles["view-label"]}`} ref={labelRefs[i]}>{name}</label>
-                <span className={`ms-3 ${autoScroll[i] ? "" : "opacity-25"}`} onClick={toggleAutoScroll} id={"auto_scroll" + i}>
-                  <i className="bi bi-card-text text-light"></i>
-                  <i className="bi bi-arrow-down-short text-light"></i>
-                </span>
-                <div className={styles.view} style={{overflow: "auto"}} ref={divRefs[i]}>
+                <div>
+                  <span className={`d-inline-block pt-1 pb-1 ${styles["view-label"]}`} ref={labelRefs[i]}>{name}</span>
+                  <span className={`ms-3 ${autoScroll[i] ? "" : "opacity-25"}`} onClick={toggleAutoScroll} id={"auto_scroll" + i}>
+                    <i className="bi bi-card-text text-light"></i>
+                    <i className="bi bi-arrow-down-short text-light"></i>
+                  </span>
+                </div>
+                <div className={styles.view} style={{overflow: "auto"}} ref={messageRefs[i]}>
                   {
                     messages[i][0].map((e, j) => {
                       const message = verbose ? e[2] + " " + e[0] : e[0];

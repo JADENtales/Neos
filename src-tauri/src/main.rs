@@ -23,6 +23,7 @@ fn main() {
   let club = CustomMenuItem::new("view4".to_string(), "クラブ").accelerator("5");
   let system = CustomMenuItem::new("view5".to_string(), "システム").accelerator("6");
   let server = CustomMenuItem::new("view6".to_string(), "叫び").accelerator("7");
+  let exp = CustomMenuItem::new("exp".to_string(), "経験値").accelerator("0");
   let all_auto_scroll = CustomMenuItem::new("auto_scroll0".to_string(), "全体").accelerator("Ctrl+1");
   let public_auto_scroll = CustomMenuItem::new("auto_scroll1".to_string(), "一般").accelerator("Ctrl+2");
   let private_auto_scroll = CustomMenuItem::new("auto_scroll2".to_string(), "耳打ち").accelerator("Ctrl+3");
@@ -38,7 +39,6 @@ fn main() {
     .add_item(club_auto_scroll)
     .add_item(system_auto_scroll)
     .add_item(server_auto_scroll));
-  let separator = MenuItem::Separator;
   let verbose = CustomMenuItem::new("verbose".to_string(), "時間表示").accelerator("T");
   let vertical = CustomMenuItem::new("vertical".to_string(), "縦分割").accelerator("D");
   let limit = CustomMenuItem::new("limit".to_string(), "表示制限 (500行)");
@@ -50,7 +50,9 @@ fn main() {
     .add_item(club)
     .add_item(system)
     .add_item(server)
-    .add_native_item(separator)
+    .add_native_item(MenuItem::Separator)
+    .add_item(exp)
+    .add_native_item(MenuItem::Separator)
     .add_submenu(auto_scroll)
     .add_item(verbose)
     .add_item(vertical)
@@ -71,6 +73,8 @@ fn main() {
             state.auto_scroll[i] = store.get(format!("auto_scroll{}", i)).unwrap_or(&json!(state.auto_scroll[i])).as_bool().unwrap();
             app.get_window("main").unwrap().menu_handle().get_item(&format!("auto_scroll{}", i)).set_selected(state.auto_scroll[i])?;
           }
+          state.exp = store.get("exp").unwrap_or(&json!(state.exp)).as_bool().unwrap();
+          app.get_window("main").unwrap().menu_handle().get_item("exp").set_selected(state.exp)?;
           state.verbose = store.get("verbose").unwrap_or(&json!(state.verbose)).as_bool().unwrap();
           app.get_window("main").unwrap().menu_handle().get_item("verbose").set_selected(state.verbose)?;
           state.vertical = store.get("vertical").unwrap_or(&json!(state.vertical)).as_bool().unwrap();
@@ -85,6 +89,8 @@ fn main() {
             store.insert(format!("auto_scroll{}", i), json!(state.auto_scroll[i]))?;
             app.get_window("main").unwrap().menu_handle().get_item(&format!("auto_scroll{}", i)).set_selected(state.auto_scroll[i])?;
           }
+          store.insert("exp".to_string(), json!(state.exp))?;
+          app.get_window("main").unwrap().menu_handle().get_item("exp").set_selected(state.exp)?;
           store.insert("verbose".to_string(), json!(state.verbose))?;
           app.get_window("main").unwrap().menu_handle().get_item("verbose").set_selected(state.verbose)?;
           store.insert("vertical".to_string(), json!(state.vertical))?;
@@ -105,6 +111,8 @@ fn main() {
           let state = app_handle.state() as tauri::State<Mutex<App>>;
           let mut app = state.lock().unwrap();
           let result = app.read_log(path, utc);
+          let exp = app.calc_exp(utc);
+          app_handle.emit_all("exp", exp).unwrap();
           if let Ok(ReadStatus::Unchanged) = result {
             continue;
           } else if let Err(_) = result {
@@ -130,16 +138,22 @@ fn main() {
         });
       }
       let app_handle = app.handle();
+      let f = move |value| app_handle.get_window("main").unwrap().menu_handle().get_item("exp").set_selected(value).unwrap();
+      app.handle().listen_global("exp_visible_back", move |event| {
+        let payload = event.payload().unwrap() == "true";
+        f(payload);
+      });
+      let app_handle = app.handle();
       let f = move |value| app_handle.get_window("main").unwrap().menu_handle().get_item("verbose").set_selected(value).unwrap();
       app.handle().listen_global("verbose_back", move |event| {
-          let payload = event.payload().unwrap() == "true";
-          f(payload);
+        let payload = event.payload().unwrap() == "true";
+        f(payload);
       });
       let app_handle = app.handle();
       let f = move |value| app_handle.get_window("main").unwrap().menu_handle().get_item("vertical").set_selected(value).unwrap();
       app.handle().listen_global("vertical_back", move |event| {
-          let payload = event.payload().unwrap() == "true";
-          f(payload);
+        let payload = event.payload().unwrap() == "true";
+        f(payload);
       });
       Ok(())
     })
@@ -151,6 +165,13 @@ fn main() {
       store.load().unwrap();
       match event.menu_item_id() {
         "exit" => event.window().close().unwrap(),
+        "exp" => {
+          app.exp = !app.exp;
+          store.insert("exp".to_string(), json!(app.exp)).unwrap();
+          store.save().unwrap();
+          event.window().menu_handle().get_item(event.menu_item_id()).set_selected(app.exp).unwrap();
+          event.window().emit_all("exp_visible", app.exp).unwrap();
+        }
         "verbose" => {
           app.verbose = !app.verbose;
           store.insert("verbose".to_string(), json!(app.verbose)).unwrap();
@@ -202,6 +223,7 @@ fn main() {
 #[derive(Serialize, Deserialize)]
 struct State {
   views: Vec<bool>,
+  exp: bool,
   auto_scroll: Vec<bool>,
   verbose: bool,
   vertical: bool,
@@ -211,10 +233,11 @@ struct State {
 fn get_state(state: tauri::State<Mutex<App>>) -> Result<State, String> {
   let state = state.lock().unwrap();
   let views = state.views.clone();
+  let exp = state.exp;
   let auto_scroll = state.auto_scroll.clone();
   let verbose = state.verbose;
   let vertical = state.vertical;
-  Ok(State { views, auto_scroll, verbose, vertical })
+  Ok(State { views, exp, auto_scroll, verbose, vertical })
 }
 
 #[tauri::command]
